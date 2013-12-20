@@ -187,74 +187,82 @@ public class RedisProtocol {
      */
     public static boolean fillCommand(ByteBuffer byteBuffer,Operation operation){
         while(byteBuffer.position()<byteBuffer.limit()){
-            if(operation.getWritePhase()==WritePhase.RAW){
-                byteBuffer.put(ASTERISK_BYTE);
-
-                operation.setWriteArgsIndex(0);
-
-                prepareWriteData(buildInt(operation.getArgs().length + 1),WritePhase.WRITE_ARGS_LENGTH,operation);
-
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARGS_LENGTH){
-
-                writeData(operation, byteBuffer, WritePhase.WRITE_ARGS_LENGTH_END);
-
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARGS_LENGTH_END){
-                byteBuffer.put(specialr);
-                operation.setWritePhase(WritePhase.WRITE_ARGS_R);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARGS_R){
-                byteBuffer.put(specialn);
-                operation.setWritePhase(WritePhase.WRITE_ARGS_N);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARGS_N){
-                byteBuffer.put(DOLLAR_BYTE);
-                operation.setWritePhase(WritePhase.WRITE_DOLLAR);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_DOLLAR){
-
-                prepareWriteData(buildInt(StringEncoder.getBytes(operation.getCommand().name()).length),WritePhase.WRITE_COMMAND_LENGTH,operation);
-
-            }else if(operation.getWritePhase()==WritePhase.WRITE_COMMAND_LENGTH){
-
-                writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_LENGTH_R);
-
-            }else if(operation.getWritePhase()==WritePhase.WRITE_COMMAND_LENGTH_R){
-                byteBuffer.put(specialr);
-                operation.setWritePhase(WritePhase.WRITE_COMMAND_LENGTH_N);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_COMMAND_LENGTH_N){
-                byteBuffer.put(specialn);
-                prepareWriteData(StringEncoder.getBytes(operation.getCommand().toString()),WritePhase.WRITE_COMMAND,operation);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_COMMAND){
-
-                writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_R);
-
-            }else if(operation.getWritePhase()==WritePhase.WRITE_COMMAND_R){
-                byteBuffer.put(specialr);
-                operation.setWritePhase(WritePhase.WRITE_COMMAND_N);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_COMMAND_N){
-                byteBuffer.put(specialn);
-
-                operation.setWritePhase(WritePhase.WRITE_ARGS_DOLLAR);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARGS_DOLLAR){
-                if(operation.getArgs().length==0||operation.getWriteArgsIndex()==operation.getArgs().length){
-                    return true;
-                }
-                byteBuffer.put(DOLLAR_BYTE);
-                prepareWriteData(buildInt((operation.getArgs()[operation.getWriteArgsIndex()]).length),WritePhase.WRITE_ARG_LENGTH,operation);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARG_LENGTH){
-                writeData(operation, byteBuffer, WritePhase.WRITE_ARG_LENGTH_R);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARG_LENGTH_R){
-                byteBuffer.put(specialr);
-                operation.setWritePhase(WritePhase.WRITE_ARG_LENGTH_N);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARG_LENGTH_N){
-                byteBuffer.put(specialn);
-                prepareWriteData(operation.getArgs()[operation.getWriteArgsIndex()],WritePhase.WRITE_ARG,operation);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARG){
-                writeData(operation,byteBuffer,WritePhase.WRITE_ARG_R);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARG_R){
-                byteBuffer.put(specialr);
-                operation.setWritePhase(WritePhase.WRITE_ARG_N);
-            }else if(operation.getWritePhase()==WritePhase.WRITE_ARG_N){
-                byteBuffer.put(specialn);
-                operation.setWriteArgsIndex(operation.getWriteArgsIndex()+1);
-                operation.setWritePhase(WritePhase.WRITE_ARGS_DOLLAR);
+            switch (operation.getWritePhase()){
+                case RAW:
+                    byteBuffer.put(ASTERISK_BYTE);
+                    operation.setWriteArgsIndex(0);
+                    prepareWriteData(buildInt(operation.getArgs().length + 1),WritePhase.WRITE_ARGS_LENGTH,operation);
+                    break;
+                case WRITE_ARGS_LENGTH:
+                    writeData(operation, byteBuffer, WritePhase.WRITE_ARGS_LENGTH_END);
+                    break;
+                case WRITE_ARGS_LENGTH_END:
+                    byteBuffer.put(specialr);
+                    operation.setWritePhase(WritePhase.WRITE_ARGS_R);
+                    break;
+                case WRITE_ARGS_R:
+                    byteBuffer.put(specialn);
+                    operation.setWritePhase(WritePhase.WRITE_ARGS_N);
+                    break;
+                case WRITE_ARGS_N:
+                    byteBuffer.put(DOLLAR_BYTE);
+                    operation.setWritePhase(WritePhase.WRITE_DOLLAR);
+                    break;
+                case WRITE_DOLLAR:
+                    prepareWriteData(buildInt(StringEncoder.getBytes(operation.getCommand().name()).length),WritePhase.WRITE_COMMAND_LENGTH,operation);
+                    break;
+                case WRITE_COMMAND_LENGTH:
+                    writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_LENGTH_R);
+                    break;
+                case WRITE_COMMAND_LENGTH_R:
+                    byteBuffer.put(specialr);
+                    operation.setWritePhase(WritePhase.WRITE_COMMAND_LENGTH_N);
+                    break;
+                case WRITE_COMMAND_LENGTH_N:
+                    byteBuffer.put(specialn);
+                    prepareWriteData(StringEncoder.getBytes(operation.getCommand().toString()),WritePhase.WRITE_COMMAND,operation);
+                    break;
+                case WRITE_COMMAND:
+                    writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_R);
+                    break;
+                case WRITE_COMMAND_R:
+                    byteBuffer.put(specialr);
+                    operation.setWritePhase(WritePhase.WRITE_COMMAND_N);
+                    break;
+                case WRITE_COMMAND_N:
+                    byteBuffer.put(specialn);
+                    operation.setWritePhase(WritePhase.WRITE_ARGS_DOLLAR);
+                    break;
+                case WRITE_ARGS_DOLLAR:
+                    if(operation.getArgs().length==0||operation.getWriteArgsIndex()==operation.getArgs().length){
+                        return true;
+                    }
+                    byteBuffer.put(DOLLAR_BYTE);
+                    prepareWriteData(buildInt((operation.getArgs()[operation.getWriteArgsIndex()]).length),WritePhase.WRITE_ARG_LENGTH,operation);
+                    break;
+                case WRITE_ARG_LENGTH:
+                    writeData(operation, byteBuffer, WritePhase.WRITE_ARG_LENGTH_R);
+                    break;
+                case WRITE_ARG_LENGTH_R:
+                    byteBuffer.put(specialr);
+                    operation.setWritePhase(WritePhase.WRITE_ARG_LENGTH_N);
+                    break;
+                case WRITE_ARG_LENGTH_N:
+                    byteBuffer.put(specialn);
+                    prepareWriteData(operation.getArgs()[operation.getWriteArgsIndex()],WritePhase.WRITE_ARG,operation);
+                    break;
+                case WRITE_ARG:
+                    writeData(operation,byteBuffer,WritePhase.WRITE_ARG_R);
+                    break;
+                case WRITE_ARG_R:
+                    byteBuffer.put(specialr);
+                    operation.setWritePhase(WritePhase.WRITE_ARG_N);
+                    break;
+                case WRITE_ARG_N:
+                    byteBuffer.put(specialn);
+                    operation.setWriteArgsIndex(operation.getWriteArgsIndex()+1);
+                    operation.setWritePhase(WritePhase.WRITE_ARGS_DOLLAR);
+                    break;
             }
         }
         return false;
