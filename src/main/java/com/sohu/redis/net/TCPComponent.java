@@ -78,20 +78,29 @@ public class TCPComponent extends Thread {
         SocketChannel socketChannel = (SocketChannel) key.channel();
         ByteBuffer byteBuffer=connection.getWriteByteBuffer();
         Operation operation;
+        //从写队列中拿出operation
         while ((operation=connection.peekWriteCurrentOperation()) != null) {
+            //填充operation的数据到byte buffer中，返回是否填充完毕，如果byte buffer不够大，就返回false
             boolean isAll=operation.fillWriteBuf(byteBuffer);
             try {
                 if(isAll){
+                    //如果填充完毕，就从写队列中移除operation
                     connection.pollWriteCurrentOperation();
+                    //如果byte buffer 还有容量，并且还有其他的operation需要写数据，那么继续选择其他后面的operation填充byte buffer
                     if(byteBuffer.hasRemaining()&&connection.peekWriteCurrentOperation()!=null){
                         continue;
                     }
                 }
+                //这里表明，byte buffer满了，或者没有其他的operation需要填充了，那么就可以写数据了
                 byteBuffer.flip();
                 socketChannel.write(byteBuffer);
+
                 if(byteBuffer.hasRemaining()){
+                    //如果byte buffer中的数据未全写完，那么返回，等待write事件，同时回收byte buffer
                     byteBuffer.compact();
+                    return;
                 }else{
+                    //byte buffer全部写完，清空byte buffer
                     byteBuffer.clear();
                 }
             } catch (IOException e) {
@@ -115,10 +124,12 @@ public class TCPComponent extends Thread {
                 count = socketChannel.read(rbuf);
                 if (count > 0) {
                     rbuf.flip();
+                    //byte buffer中有数据，就从pending队列中取出operation，pipeline
                     while (rbuf.hasRemaining()) {
                         Operation operation = connection.peekPendingCurrentOperation();
                         boolean result = operation.completeData(rbuf);
                         if (result) {
+                            //operation解析byte buffer中的数据完整了，就移除operation，回调客户端线程
                             connection.pollPendingCurrentOperation();
                             operation.pushData();
                         }

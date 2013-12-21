@@ -16,46 +16,91 @@ public class Operation {
     private static final Logger LOGGER = LoggerFactory.getLogger(Operation.class);
 
     private OperationFuture future;
-
+    /**
+     * 解析response的初始状态
+     */
     private ParseStatus parseStatus=ParseStatus.RAW;
 
+    /**
+     * 组装request的初始状态
+     */
     private WritePhase writePhase=WritePhase.RAW;
 
+    /**
+     * 当前operation需要写的数据，比如key的byte[],value的byte[]等
+     */
     private byte[] writeTarget;
 
+    /**
+     * 写writeTarget的index，如果当前write的buffer满了需要write到网络，index保存写的索引
+     */
     private int writeDataIndex;
 
+    /**
+     * 记录多个参数的index
+     */
     private int writeArgsIndex;
 
+    /**
+     * 读取multi操作response的index
+     */
     private int multiDataIndex;
 
+
+    /**
+     * 单个操作中，response数据的长度，get操作等，记录中间数据，
+     */
     private StringBuilder dLenStr=new StringBuilder();
 
+    /**
+     * 多重操作中，记录结果的个数，记录中间的数据
+     */
     private StringBuilder mLenstr=new StringBuilder();
 
+    /**
+     * 记录response数据，二维数组是为了记录mget类，多个返回结果的数据
+     */
     private byte[][] data;
 
+    /**
+     * 记录response是否抛出了异常
+     */
     private boolean exception;
 
     /**
-     * data  剩余多少byte
+     * data 剩余多少byte未读取
      */
-    private int dLen;
+    private int dLast;
 
+    /**
+     * response的type
+     */
     private ResponseType responseType;
 
+    /**
+     * request的command
+     */
     private Command command;
 
+    /**
+     * 记录request参数
+     */
     private byte[][] args;
 
-    private static int DATABUF_SIZE=32;
+    /**
+     * 接收response数据的bufsize，如果不够了，2倍扩大
+     */
+    private static int DATABUF_SIZE=1024;
 
+    /**
+     *response的data buf的index
+     */
     private int dataIndex;
 
     /**
-     * mutil result 个数
+     * 多重操作中，记录response中，结果个数
      */
-    private int msize;
+    private int mLen;
 
     public Operation(Command command, byte[]... args) {
         this.command=command;
@@ -93,14 +138,6 @@ public class Operation {
 
     public void setdLenStr(StringBuilder dLenStr) {
         this.dLenStr = dLenStr;
-    }
-
-    public int getdLen() {
-        return dLen;
-    }
-
-    public void setdLen(int dLen) {
-        this.dLen = dLen;
     }
 
     public ResponseType getResponseType() {
@@ -184,18 +221,32 @@ public class Operation {
         this.mLenstr = mLenstr;
     }
 
-    public int getMsize() {
-        return msize;
+    public int getmLen() {
+        return mLen;
     }
 
-    public void setMsize(int msize) {
-        this.msize = msize;
+    public void setmLen(int mLen) {
+        this.mLen = mLen;
     }
+
+    public int getdLast() {
+        return dLast;
+    }
+
+    public void setdLast(int dLast) {
+        this.dLast = dLast;
+    }
+
 
     public enum Command {
         GET, SET,SETEX;
     }
 
+    /**
+     * 普通bulk multi bulk操作返回数据的回调方法，
+     * @param byteBuffer
+     * @param length 写入数据的长度
+     */
     public void addData(ByteBuffer byteBuffer,int length){
         if(byteBuffer==null){
             return;
@@ -203,7 +254,7 @@ public class Operation {
         byte[] temp;
         int offset=0;
         if(data==null){
-            data=new byte[msize==0?1:msize][];
+            data=new byte[mLen==0?1:mLen][];
         }
         if(data[multiDataIndex]==null){
             temp=new byte[length];
@@ -216,9 +267,13 @@ public class Operation {
         data[multiDataIndex]=temp;
     }
 
+    /**
+     * 返回status code，异常信息的回调方法，一个byte一个byte的写
+     * @param b
+     */
     public void addMsgData(byte b){
         if(data==null){
-            data=new byte[msize==0?1:msize][];
+            data=new byte[mLen==0?1:mLen][];
         }
         if(data[multiDataIndex]==null){
             data[multiDataIndex]=new byte[DATABUF_SIZE];
@@ -233,12 +288,18 @@ public class Operation {
         dataIndex++;
     }
 
+    /**
+     * 接收完全部数据，去掉data中最后的空数据
+     */
     public void compactMsgData(){
         byte[] temp=new byte[dataIndex];
         System.arraycopy(data[multiDataIndex],0,temp,0,dataIndex);
         data[multiDataIndex]=temp;
     }
 
+    /**
+     * 数据接收完毕，tcpcomponent线程把数据set到future里面
+     */
     public void pushData(){
         this.future.setResult(data);
     }

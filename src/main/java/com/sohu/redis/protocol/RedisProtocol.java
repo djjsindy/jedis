@@ -28,7 +28,11 @@ public class RedisProtocol {
 
     public static final byte specialn = '\n';
 
-
+    /**
+     * 把int组装成byte array
+     * @param value
+     * @return
+     */
     private static byte[] buildInt(int value) {
         byte[] temp=new byte[20];
         String str=Integer.toString(value);
@@ -87,13 +91,13 @@ public class RedisProtocol {
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_R);
             }else if(b=='\n'&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_R){
                 int length=Integer.parseInt(operation.getmLenstr().toString());
-                operation.setMsize(length);
+                operation.setmLen(length);
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
             } else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_N){
                 boolean complete=processResult(byteBuffer,operation);
                 if(complete){
                     int mutilDataIndex=operation.getMutilDataIndex();
-                    if(mutilDataIndex==operation.getMsize()-1){
+                    if(mutilDataIndex==operation.getmLen()-1){
                         return true;
                     }else{
                         operation.setMutilDataIndex(mutilDataIndex+1);
@@ -137,14 +141,14 @@ public class RedisProtocol {
     private static boolean processBulkReply(ByteBuffer byteBuffer,Operation operation) {
         while(byteBuffer.position()<byteBuffer.limit()){
             if(operation.getParseStatus()==ParseStatus.MEETLENGTHN){
-                int len=operation.getdLen();
+                int len=operation.getdLast();
                 int remaining=byteBuffer.remaining();
                 if(len<=remaining){
                     operation.addData(byteBuffer,len);
                     operation.setParseStatus(ParseStatus.DATAEND);
                 }else{
                     operation.addData(byteBuffer, remaining);
-                    operation.setdLen(len-remaining);
+                    operation.setdLast(len-remaining);
                 }
                 return false;
             }
@@ -156,7 +160,7 @@ public class RedisProtocol {
                 operation.setParseStatus(ParseStatus.MEETLENGTHN);
                 int length=Integer.parseInt(operation.getdLenStr().toString());
                 if(length>=0){
-                    operation.setdLen(length);
+                    operation.setdLast(length);
                 }else{
                     operation.addData(null,-1);
                     return true;
@@ -281,7 +285,7 @@ public class RedisProtocol {
     }
 
     /**
-     * 写数据per bit到bytebuffer
+     * 写数据per bit到byte buffer
      * @param operation
      * @param byteBuffer
      * @param toPhase
