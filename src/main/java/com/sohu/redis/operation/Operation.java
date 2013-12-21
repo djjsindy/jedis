@@ -239,7 +239,7 @@ public class Operation {
 
 
     public enum Command {
-        GET, SET,SETEX;
+        GET, SET,SETEX,EXISTS;
     }
 
     /**
