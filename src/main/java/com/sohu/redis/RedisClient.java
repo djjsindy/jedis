@@ -39,7 +39,7 @@ public class RedisClient {
      */
     public String getString(String key) {
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
-        byte[] response = singleRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key);
         return response != null ? StringEncoder.getString(response) : null;
     }
 
@@ -51,7 +51,7 @@ public class RedisClient {
      */
     public Object getObject(String key) {
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
-        byte[] response = singleRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key);
         return response != null ? serializer.decode(response) : null;
     }
 
@@ -70,7 +70,7 @@ public class RedisClient {
         } else {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), StringEncoder.getBytes(value));
         }
-        byte[] response = singleRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key);
         return response != null ? StringEncoder.getString(response) : null;
     }
 
@@ -81,15 +81,60 @@ public class RedisClient {
         } else {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), serializer.encode(object));
         }
-        byte[] response = singleRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key);
         return response != null ? StringEncoder.getString(response) : null;
     }
 
     public boolean exists(final String key) {
         Operation operation = new Operation(Operation.Command.EXISTS, StringEncoder.getBytes(key));
-        byte[] response = singleRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key);
         return response==null?false:(response[0]==49?true:false);
     }
+
+    public boolean del(final String key){
+        Operation operation = new Operation(Operation.Command.DEL, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key);
+        return response==null?false:(response[0]==49?true:false);
+    }
+
+    public boolean expire(String key, int expireSeconds) {
+        Operation operation = new Operation(Operation.Command.EXPIRE, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(expireSeconds)));
+        byte[] response = singleKeyRequest(operation, key);
+        return response==null?false:(response[0]==49?true:false);
+    }
+
+    public Long incr(String key) {
+        Operation operation = new Operation(Operation.Command.INCR, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key);
+        return buildLong(response);
+    }
+
+    public Long incrBy(String key,long step){
+        Operation operation = new Operation(Operation.Command.INCRBY, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(step)));
+        byte[] response = singleKeyRequest(operation, key);
+        return buildLong(response);
+    }
+
+    public Long decr(String key){
+        Operation operation = new Operation(Operation.Command.DECR, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key);
+        return buildLong(response);
+    }
+
+    public Long decrBy(String key,long step){
+        Operation operation = new Operation(Operation.Command.DECRBY, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(step)));
+        byte[] response = singleKeyRequest(operation, key);
+        return buildLong(response);
+    }
+
+    private Long buildLong(byte[] response) {
+        StringBuilder sb=new StringBuilder();
+        for(byte b:response){
+            sb.append((char)b);
+        }
+        return Long.valueOf(sb.toString());
+    }
+
 
     private RedisConnection getConnection(String key) {
         RedisNode redisNode = nodeSelector.getNodeByKey(key);
@@ -97,7 +142,7 @@ public class RedisClient {
         return connection;
     }
 
-    private byte[] singleRequest(Operation operation, String key) {
+    private byte[] singleKeyRequest(Operation operation, String key) {
         try {
             RedisConnection connection = getConnection(key);
             connection.addOperation(operation);
