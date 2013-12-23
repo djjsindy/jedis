@@ -2,6 +2,9 @@ package com.sohu.redis;
 
 import com.sohu.redis.net.RedisNode;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * Created by jianjundeng on 12/15/13.
  */
@@ -21,5 +24,9 @@ public class NodeSelector {
 
     public RedisNode getNodeByKey(String key){
         return redisNodes[key.hashCode()%redisNodes.length];
+    }
+
+    public List<RedisNode> getAllNodes(){
+        return Arrays.asList(redisNodes);
     }
 }

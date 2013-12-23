@@ -9,6 +9,9 @@ import com.sohu.redis.transform.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -85,6 +88,22 @@ public class RedisClient {
         return response != null ? StringEncoder.getString(response) : null;
     }
 
+    public String setByteArr(String key, int seconds, byte[] value) {
+        Operation operation;
+        if (seconds > 0) {
+            operation = new Operation(Operation.Command.SETEX, StringEncoder.getBytes(key), StringEncoder.getBytes(String.valueOf(seconds)), value);
+        } else {
+            operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), value);
+        }
+        byte[] response = singleKeyRequest(operation, key);
+        return response != null ? StringEncoder.getString(response) : null;
+    }
+
+    public byte[] getByteArr(String key){
+        Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
+        return singleKeyRequest(operation, key);
+    }
+
     public boolean exists(final String key) {
         Operation operation = new Operation(Operation.Command.EXISTS, StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key);
@@ -127,6 +146,33 @@ public class RedisClient {
         return buildLong(response);
     }
 
+    public List<String> flushAll(){
+        Operation operation=new Operation(Operation.Command.FLUSHALL);
+        List<byte []>result=controlRequest(operation);
+        return StringEncoder.getStringList(result);
+    }
+
+    public Set<String> keys(final String pattern) {
+        Operation operation=new Operation(Operation.Command.KEYS,StringEncoder.getBytes(pattern));
+        List<byte []>result=controlRequest(operation);
+        return StringEncoder.getStringSet(result);
+    }
+
+    public Long ttl(final String key) {
+        Operation operation = new Operation(Operation.Command.TTL, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key);
+        return buildLong(response);
+    }
+
+    public String getSet(final String key, final String value) {
+        Operation operation = new Operation(Operation.Command.GETSET, StringEncoder.getBytes(key),StringEncoder.getBytes(value));
+        byte[] response = singleKeyRequest(operation, key);
+        return response != null ? StringEncoder.getString(response) : null;
+    }
+
+
+
+
     private Long buildLong(byte[] response) {
         StringBuilder sb=new StringBuilder();
         for(byte b:response){
@@ -140,6 +186,14 @@ public class RedisClient {
         RedisNode redisNode = nodeSelector.getNodeByKey(key);
         RedisConnection connection = redisNode.getAvailableConnection();
         return connection;
+    }
+
+    private List<RedisConnection> getAllAcailableConnections(){
+        List<RedisNode> nodes=nodeSelector.getAllNodes();
+        List<RedisConnection> connections=new ArrayList<RedisConnection>();
+        for(RedisNode redisNode:nodes)
+            connections.add(redisNode.getAvailableConnection());
+        return connections;
     }
 
     private byte[] singleKeyRequest(Operation operation, String key) {
@@ -156,5 +210,22 @@ public class RedisClient {
             LOGGER.error(e.getMessage());
         }
         return null;
+    }
+
+    private List<byte[]> controlRequest(Operation operation){
+        List<byte[]> result=new ArrayList<byte[]>();
+        for(RedisConnection redisConnection:getAllAcailableConnections()){
+            try {
+                redisConnection.addOperation(operation);
+                result.add(((byte[][]) operation.getFuture().get(TIMEOUT, TimeUnit.SECONDS))[0]);
+            } catch (InterruptedException e) {
+                LOGGER.error(e.getMessage());
+            } catch (ExecutionException e) {
+                LOGGER.error(e.getMessage());
+            } catch (TimeoutException e) {
+                LOGGER.error(e.getMessage());
+            }
+        }
+        return result;
     }
 }
