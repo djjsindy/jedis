@@ -86,6 +86,30 @@ public class RedisProtocol {
             if(operation.getParseStatus()==ParseStatus.RAW){
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH);
             }
+            else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_N){
+                //取出上次的解析状态
+                operation.setParseStatus(operation.getSubParseContext().getParseStatus());
+                operation.setResponseType(operation.getSubParseContext().getResponseType());
+                boolean complete=processResult(byteBuffer,operation);
+                //还原主请求状态
+                operation.getSubParseContext().setParseStatus(operation.getParseStatus());
+                operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
+                operation.getSubParseContext().setResponseType(operation.getResponseType());
+                operation.setResponseType(ResponseType.MutilReply);
+                if(complete){
+                    int mutilDataIndex=operation.getMutilDataIndex();
+                    if(mutilDataIndex==operation.getmLen()-1){
+                        return true;
+                    }else{
+                        operation.setMutilDataIndex(mutilDataIndex+1);
+                        operation.setdLenStr(new StringBuilder());
+                        operation.getSubParseContext().setParseStatus(ParseStatus.RAW);
+                    }
+                }else{
+                    return false;
+                }
+                continue;
+            }
             int b=byteBuffer.get();
             if(b=='\r'&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_R);
@@ -93,22 +117,11 @@ public class RedisProtocol {
                 int length=Integer.parseInt(operation.getmLenstr().toString());
                 operation.setmLen(length);
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
-            } else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_N){
-                boolean complete=processResult(byteBuffer,operation);
-                if(complete){
-                    int mutilDataIndex=operation.getMutilDataIndex();
-                    if(mutilDataIndex==operation.getmLen()-1){
-                        return true;
-                    }else{
-                        operation.setMutilDataIndex(mutilDataIndex+1);
-                    }
-                }else{
-                    return false;
-                }
+            }else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
+                operation.getmLenstr().append((char)b);
             }
-            else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
-                operation.getmLenstr().append((byte)b);
-            }
+
+
         }
         return false;
     }
@@ -149,8 +162,9 @@ public class RedisProtocol {
                 }else{
                     operation.addData(byteBuffer, remaining);
                     operation.setdLast(len-remaining);
+                    return false;
                 }
-                return false;
+                continue;
             }
             int b=byteBuffer.get();
             if(b=='\r'&&operation.getParseStatus()==ParseStatus.READLENGTH){
@@ -162,7 +176,7 @@ public class RedisProtocol {
                 if(length>=0){
                     operation.setdLast(length);
                 }else{
-                    operation.addData(null,-1);
+                    operation.addData(null,0);
                     return true;
                 }
             }

@@ -40,7 +40,10 @@ public class StringEncoder {
         try {
             List<String> result = new ArrayList<String>(list.size());
             for (byte[] b : list) {
-                result.add(new String(b, DEFAULT_CHARSET));
+                if(b.length==0)
+                    result.add(null);
+                else
+                    result.add(new String(b, DEFAULT_CHARSET));
             }
             return result;
         } catch (UnsupportedEncodingException e) {
@@ -53,7 +56,10 @@ public class StringEncoder {
         try {
             Set<String> result = new HashSet<String>(list.size());
             for (byte[] b : list) {
-                result.add(new String(b, DEFAULT_CHARSET));
+                if(b.length==0)
+                    result.add(null);
+                else
+                    result.add(new String(b, DEFAULT_CHARSET));
             }
             return result;
         } catch (UnsupportedEncodingException e) {

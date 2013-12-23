@@ -152,6 +152,7 @@ public class TCPComponent extends Thread {
     public void register(RedisConnection connection) {
         try {
             SocketChannel channel = SocketChannel.open();
+            channel.socket().setSoTimeout(2);
             connection.setSocketChannel(channel);
             connection.setTcpComponent(this);
             boolean connect = channel.connect(new InetSocketAddress(connection.getHost(), connection.getPort()));

@@ -2,6 +2,7 @@ package com.sohu.redis.operation;
 
 import com.sohu.redis.protocol.ParseStatus;
 import com.sohu.redis.protocol.RedisProtocol;
+import com.sohu.redis.protocol.SubParseContext;
 import com.sohu.redis.protocol.WritePhase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,11 @@ public class Operation {
      * 解析response的初始状态
      */
     private ParseStatus parseStatus=ParseStatus.RAW;
+
+    /**
+     * 保存子操作的状态，负责保持subParseContext和operation相关状态的转换
+     */
+    private SubParseContext subParseContext=new SubParseContext();
 
     /**
      * 组装request的初始状态
@@ -45,7 +51,6 @@ public class Operation {
      * 读取multi操作response的index
      */
     private int multiDataIndex;
-
 
     /**
      * 单个操作中，response数据的长度，get操作等，记录中间数据，
@@ -237,9 +242,31 @@ public class Operation {
         this.dLast = dLast;
     }
 
+    public SubParseContext getSubParseContext() {
+        return subParseContext;
+    }
+
+    public void setSubParseContext(SubParseContext subParseContext) {
+        this.subParseContext = subParseContext;
+    }
+
 
     public enum Command {
-        GET, SET,SETEX,EXISTS,DEL,EXPIRE,INCR,INCRBY,DECR,DECRBY,FLUSHALL,KEYS,TTL,GETSET;
+        GET,
+        SET,
+        SETEX,
+        EXISTS,
+        DEL,
+        EXPIRE,
+        INCR,
+        INCRBY,
+        DECR,
+        DECRBY,
+        FLUSHALL,
+        KEYS,
+        TTL,
+        GETSET,
+        MGET;
     }
 
     /**
@@ -248,9 +275,6 @@ public class Operation {
      * @param length 写入数据的长度
      */
     public void addData(ByteBuffer byteBuffer,int length){
-        if(byteBuffer==null){
-            return;
-        }
         byte[] temp;
         int offset=0;
         if(data==null){
@@ -263,7 +287,8 @@ public class Operation {
             temp=new byte[data[multiDataIndex].length+length];
             System.arraycopy(data[multiDataIndex],0,temp,0,data[multiDataIndex].length);
         }
-        byteBuffer.get(temp,offset,length);
+        if(byteBuffer!=null)
+            byteBuffer.get(temp,offset,length);
         data[multiDataIndex]=temp;
     }
 

@@ -9,9 +9,7 @@ import com.sohu.redis.transform.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -43,7 +41,7 @@ public class RedisClient {
     public String getString(String key) {
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key);
-        return response != null ? StringEncoder.getString(response) : null;
+        return response.length!=0? StringEncoder.getString(response) : null;
     }
 
     /**
@@ -55,7 +53,7 @@ public class RedisClient {
     public Object getObject(String key) {
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key);
-        return response != null ? serializer.decode(response) : null;
+        return response.length!=0 ? serializer.decode(response) : null;
     }
 
     /**
@@ -74,7 +72,7 @@ public class RedisClient {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), StringEncoder.getBytes(value));
         }
         byte[] response = singleKeyRequest(operation, key);
-        return response != null ? StringEncoder.getString(response) : null;
+        return response.length!=0 ? StringEncoder.getString(response) : null;
     }
 
     public String setObject(String key, int seconds, Object object) {
@@ -96,7 +94,7 @@ public class RedisClient {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), value);
         }
         byte[] response = singleKeyRequest(operation, key);
-        return response != null ? StringEncoder.getString(response) : null;
+        return response.length!=0 ? StringEncoder.getString(response) : null;
     }
 
     public byte[] getByteArr(String key){
@@ -107,19 +105,19 @@ public class RedisClient {
     public boolean exists(final String key) {
         Operation operation = new Operation(Operation.Command.EXISTS, StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key);
-        return response==null?false:(response[0]==49?true:false);
+        return response.length!=0?false:(response[0]==49?true:false);
     }
 
     public boolean del(final String key){
         Operation operation = new Operation(Operation.Command.DEL, StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key);
-        return response==null?false:(response[0]==49?true:false);
+        return response.length!=0?false:(response[0]==49?true:false);
     }
 
     public boolean expire(String key, int expireSeconds) {
         Operation operation = new Operation(Operation.Command.EXPIRE, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(expireSeconds)));
         byte[] response = singleKeyRequest(operation, key);
-        return response==null?false:(response[0]==49?true:false);
+        return response.length!=0?false:(response[0]==49?true:false);
     }
 
     public Long incr(String key) {
@@ -170,7 +168,51 @@ public class RedisClient {
         return response != null ? StringEncoder.getString(response) : null;
     }
 
+    public List<String> mget(final String... keys) {
+        List<byte[]> response=multiKeyRequest(Operation.Command.MGET,keys);
+        return StringEncoder.getStringList(response);
+    }
 
+    private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys) {
+        List<byte[]> result=new ArrayList<byte[]>();
+        //按照key找connection
+        Map<RedisConnection,List<String>> data=new HashMap<RedisConnection, List<String>>();
+        for(String key:keys){
+            RedisConnection redisConnection=getConnection(key);
+            List<String> keyList=data.get(redisConnection);
+            if(keyList==null){
+                keyList=new ArrayList<String>();
+                data.put(redisConnection,keyList);
+            }
+            keyList.add(key);
+        }
+        //组装multi args operation，加入connection write queue
+        List<Operation> operations=new ArrayList<Operation>();
+        for(Map.Entry<RedisConnection,List<String>> entry:data.entrySet()){
+            Operation operation = new Operation(command);
+            byte[][] args=new byte[entry.getValue().size()][];
+            int index=0;
+            for(String key:entry.getValue()){
+                args[index++]=StringEncoder.getBytes(key);
+            }
+            operation.setArgs(args);
+            entry.getKey().addOperation(operation);
+            operations.add(operation);
+        }
+        //future获得结果
+        for(Operation operation:operations){
+            try {
+                result.addAll(Arrays.asList((byte[][]) operation.getFuture().get(TIMEOUT, TimeUnit.SECONDS)));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            } catch (TimeoutException e) {
+                e.printStackTrace();
+            }
+        }
+        return result;
+    }
 
 
     private Long buildLong(byte[] response) {
