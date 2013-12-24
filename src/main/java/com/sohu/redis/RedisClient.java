@@ -1,5 +1,6 @@
 package com.sohu.redis;
 
+import com.sohu.redis.model.Pair;
 import com.sohu.redis.net.RedisConnection;
 import com.sohu.redis.net.RedisNode;
 import com.sohu.redis.operation.Operation;
@@ -40,7 +41,7 @@ public class RedisClient {
      */
     public String getString(String key) {
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0? StringEncoder.getString(response) : null;
     }
 
@@ -52,7 +53,7 @@ public class RedisClient {
      */
     public Object getObject(String key) {
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0 ? serializer.decode(response) : null;
     }
 
@@ -71,7 +72,7 @@ public class RedisClient {
         } else {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), StringEncoder.getBytes(value));
         }
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0 ? StringEncoder.getString(response) : null;
     }
 
@@ -82,7 +83,7 @@ public class RedisClient {
         } else {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), serializer.encode(object));
         }
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response != null ? StringEncoder.getString(response) : null;
     }
 
@@ -93,54 +94,54 @@ public class RedisClient {
         } else {
             operation = new Operation(Operation.Command.SET, StringEncoder.getBytes(key), value);
         }
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0 ? StringEncoder.getString(response) : null;
     }
 
     public byte[] getByteArr(String key){
         Operation operation = new Operation(Operation.Command.GET, StringEncoder.getBytes(key));
-        return singleKeyRequest(operation, key);
+        return singleKeyRequest(operation, key)[0];
     }
 
     public boolean exists(final String key) {
         Operation operation = new Operation(Operation.Command.EXISTS, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0?false:(response[0]==49?true:false);
     }
 
     public boolean del(final String key){
         Operation operation = new Operation(Operation.Command.DEL, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0?false:(response[0]==49?true:false);
     }
 
     public boolean expire(String key, int expireSeconds) {
         Operation operation = new Operation(Operation.Command.EXPIRE, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(expireSeconds)));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response.length!=0?false:(response[0]==49?true:false);
     }
 
     public Long incr(String key) {
         Operation operation = new Operation(Operation.Command.INCR, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response);
     }
 
     public Long incrBy(String key,long step){
         Operation operation = new Operation(Operation.Command.INCRBY, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(step)));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response);
     }
 
     public Long decr(String key){
         Operation operation = new Operation(Operation.Command.DECR, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response);
     }
 
     public Long decrBy(String key,long step){
         Operation operation = new Operation(Operation.Command.DECRBY, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(step)));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response);
     }
 
@@ -158,42 +159,194 @@ public class RedisClient {
 
     public Long ttl(final String key) {
         Operation operation = new Operation(Operation.Command.TTL, StringEncoder.getBytes(key));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response);
     }
 
     public String getSet(final String key, final String value) {
         Operation operation = new Operation(Operation.Command.GETSET, StringEncoder.getBytes(key),StringEncoder.getBytes(value));
-        byte[] response = singleKeyRequest(operation, key);
+        byte[] response = singleKeyRequest(operation, key)[0];
         return response != null ? StringEncoder.getString(response) : null;
     }
 
     public List<String> mget(final String... keys) {
-        List<byte[]> response=multiKeyRequest(Operation.Command.MGET,keys);
+        List<byte[]> response=multiKeyRequest(Operation.Command.MGET,keys,null);
         return StringEncoder.getStringList(response);
     }
 
-    private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys) {
+    public Long setnx(final String key, final String value) {
+        Operation operation = new Operation(Operation.Command.SETNX, StringEncoder.getBytes(key),StringEncoder.getBytes(value));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public List<String> mset(final String... keysvalues) {
+        if(keysvalues.length%2!=0){
+            LOGGER.error("key value length error");
+            return null;
+        }
+        String[] keys=new String[keysvalues.length/2];
+        String[] values=new String[keysvalues.length/2];
+        int index=0;
+        for(String str:keysvalues){
+            if(index%2==0){
+                keys[index/2]=str;
+            }else{
+                values[index/2]=str;
+            }
+        }
+        List<byte[]> response=multiKeyRequest(Operation.Command.MGET,keys,values);
+        return StringEncoder.getStringList(response);
+    }
+
+    public Long append(String key,String value) {
+        Operation operation = new Operation(Operation.Command.APPEND, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(value)));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public String substr(String key, int start, int end) {
+        Operation operation = new Operation(Operation.Command.SUBSTR, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+    public Long rpush(String key,String str) {
+        Operation operation = new Operation(Operation.Command.RPUSH, StringEncoder.getBytes(key),StringEncoder.getBytes(str));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public Long lpush(String key,String str) {
+        Operation operation = new Operation(Operation.Command.LPUSH, StringEncoder.getBytes(key),StringEncoder.getBytes(str));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Long llen(String key) {
+        Operation operation = new Operation(Operation.Command.LLEN, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public List<String> lrange(String key,long start,long end) {
+        Operation operation = new Operation(Operation.Command.LPUSH, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return StringEncoder.getStringList(Arrays.asList(response));
+    }
+
+
+    public String ltrim(String key,long start,long end) {
+        Operation operation = new Operation(Operation.Command.LTRIM, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+
+    public String lindex(String key,long index) {
+        Operation operation = new Operation(Operation.Command.LINDEX, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(index)));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+
+    public String lset(String key,long index, String value) {
+        Operation operation = new Operation(Operation.Command.LSET, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(index)),StringEncoder.getBytes(value));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+
+    public Long lrem(String key,long count, String value) {
+        Operation operation = new Operation(Operation.Command.LREM, StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(count)),StringEncoder.getBytes(value));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public String lpop(String key) {
+        Operation operation = new Operation(Operation.Command.LPOP, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+
+    public String rpop(String key) {
+        Operation operation = new Operation(Operation.Command.RPOP, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+    public Long sadd(String key,String member) {
+        Operation operation = new Operation(Operation.Command.SADD, StringEncoder.getBytes(key),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Set<String> smembers(String key) {
+        Operation operation = new Operation(Operation.Command.SMEMBERS, StringEncoder.getBytes(key));
+        byte[][] response = singleKeyRequest(operation, key);
+        return StringEncoder.getStringSet(Arrays.asList(response));
+    }
+
+    public Long srem(String key,String member) {
+        Operation operation = new Operation(Operation.Command.SREM, StringEncoder.getBytes(key),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public String spop(String key) {
+        Operation operation = new Operation(Operation.Command.SPOP, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+    public Long scard(final String key) {
+        Operation operation = new Operation(Operation.Command.SCARD, StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Boolean sismember(final String key, final String member) {
+        Operation operation = new Operation(Operation.Command.SISMEMBER, StringEncoder.getBytes(key),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response)==1;
+    }
+
+    public String srandmember(final String key) {
+        Operation operation = new Operation(Operation.Command.SRANDMEMBER,StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return StringEncoder.getString(response);
+    }
+
+    private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys,String[] values) {
         List<byte[]> result=new ArrayList<byte[]>();
         //按照key找connection
-        Map<RedisConnection,List<String>> data=new HashMap<RedisConnection, List<String>>();
+        Map<RedisConnection,List<Pair>> data=new HashMap<RedisConnection, List<Pair>>();
+        int i=0;
         for(String key:keys){
             RedisConnection redisConnection=getConnection(key);
-            List<String> keyList=data.get(redisConnection);
+            List<Pair> keyList=data.get(redisConnection);
             if(keyList==null){
-                keyList=new ArrayList<String>();
+                keyList=new ArrayList<Pair>();
                 data.put(redisConnection,keyList);
             }
-            keyList.add(key);
+            keyList.add(new Pair(key,values==null?null:values[i]));
+            i++;
         }
         //组装multi args operation，加入connection write queue
         List<Operation> operations=new ArrayList<Operation>();
-        for(Map.Entry<RedisConnection,List<String>> entry:data.entrySet()){
+        for(Map.Entry<RedisConnection,List<Pair>> entry:data.entrySet()){
             Operation operation = new Operation(command);
-            byte[][] args=new byte[entry.getValue().size()][];
+            byte[][] args=new byte[entry.getValue().size()*(values==null?1:2)][];
             int index=0;
-            for(String key:entry.getValue()){
-                args[index++]=StringEncoder.getBytes(key);
+            for(Pair pair:entry.getValue()){
+                args[index++]=StringEncoder.getBytes(pair.getKey());
+                if(values!=null){
+                    args[index++]=StringEncoder.getBytes(pair.getValue());
+                }
             }
             operation.setArgs(args);
             entry.getKey().addOperation(operation);
@@ -238,12 +391,11 @@ public class RedisClient {
         return connections;
     }
 
-    private byte[] singleKeyRequest(Operation operation, String key) {
+    private byte[][] singleKeyRequest(Operation operation, String key) {
         try {
             RedisConnection connection = getConnection(key);
             connection.addOperation(operation);
-            byte[] data = ((byte[][]) operation.getFuture().get(TIMEOUT, TimeUnit.SECONDS))[0];
-            return data;
+            return  ((byte[][]) operation.getFuture().get(TIMEOUT, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             LOGGER.error(e.getMessage());
         } catch (ExecutionException e) {
