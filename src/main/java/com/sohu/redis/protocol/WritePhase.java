@@ -6,7 +6,6 @@ package com.sohu.redis.protocol;
 public enum WritePhase {
     RAW,
     WRITE_ARGS_LENGTH,
-    WRITE_ARGS_LENGTH_END,
     WRITE_ARGS_R,
     WRITE_ARGS_N,
     WRITE_DOLLAR,
@@ -16,6 +15,7 @@ public enum WritePhase {
     WRITE_COMMAND,
     WRITE_COMMAND_R,
     WRITE_COMMAND_N,
+    WRITE_ARGS,
     WRITE_ARGS_DOLLAR,
     WRITE_ARG_LENGTH,
     WRITE_ARG_LENGTH_R,
