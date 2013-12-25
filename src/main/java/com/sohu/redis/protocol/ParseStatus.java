@@ -11,7 +11,8 @@ public enum ParseStatus {
     READ_DATA_END,
     READ_DATA_R,  //bulk
 
-    READ_MSG,MSG_R,//simple
+    READ_MSG,
+    MSG_R,     //simple
 
 
     READ_RESULT_LENGTH,
