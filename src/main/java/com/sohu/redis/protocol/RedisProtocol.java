@@ -12,8 +12,6 @@ import java.nio.ByteBuffer;
  */
 public class RedisProtocol {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RedisProtocol.class);
-
     public static final byte DOLLAR_BYTE = '$';
 
     public static final byte ASTERISK_BYTE = '*';
@@ -24,9 +22,9 @@ public class RedisProtocol {
 
     public static final byte COLON_BYTE = ':';
 
-    public static final byte specialr = '\r';
+    public static final byte specialR = '\r';
 
-    public static final byte specialn = '\n';
+    public static final byte specialN = '\n';
 
     /**
      * 把int组装成byte array
@@ -89,22 +87,24 @@ public class RedisProtocol {
         while(byteBuffer.position()<byteBuffer.limit()){
              if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_N){
                 //取出上次的解析状态
-                operation.setParseStatus(operation.getSubParseContext().getParseStatus());
-                operation.setResponseType(operation.getSubParseContext().getResponseType());
+                loadSubContext(operation);
                 boolean complete=processResult(byteBuffer,operation);
                 //还原主请求状态
-                operation.getSubParseContext().setParseStatus(operation.getParseStatus());
+                loadPrimaryContext(operation);
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
-                operation.getSubParseContext().setResponseType(operation.getResponseType());
                 operation.setResponseType(ResponseType.MutilReply);
                 if(complete){
-                    int mutilDataIndex=operation.getMutilDataIndex();
-                    if(mutilDataIndex==operation.getmLen()-1){
+                    int multiDataIndex=operation.getMutilDataIndex();
+                    if(multiDataIndex==operation.getmLen()-1){
+                        //解析到最后一个multi response了
                         return true;
                     }else{
-                        operation.setMutilDataIndex(mutilDataIndex+1);
+                        //设置index+1
+                        operation.setMutilDataIndex(multiDataIndex+1);
+                        //由于dLenStr每次都是append操作，这里需要清空
                         operation.setdLenStr(new StringBuilder());
-                        operation.getSubParseContext().setParseStatus(ParseStatus.RAW);
+                        //还原subContext的状态，为解析下一个sub response做准备
+                        operation.getSubParseContext().clear();
                     }
                 }else{
                     return false;
@@ -112,19 +112,35 @@ public class RedisProtocol {
                 continue;
             }
             int b=byteBuffer.get();
-            if(b=='\r'&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
+            if(b==specialR&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_R);
-            }else if(b=='\n'&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_R){
-                int length=Integer.parseInt(operation.getmLenstr().toString());
+            }else if(b==specialN&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_R){
+                int length=Integer.parseInt(operation.getmLenStr().toString());
                 operation.setmLen(length);
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
             }else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
-                operation.getmLenstr().append((char)b);
+                operation.getmLenStr().append((char)b);
             }
-
-
         }
         return false;
+    }
+
+    /**
+     * 从sub context中load主operation的状态
+     * @param operation
+     */
+    private static void loadPrimaryContext(Operation operation) {
+        operation.getSubParseContext().setParseStatus(operation.getParseStatus());
+        operation.getSubParseContext().setResponseType(operation.getResponseType());
+    }
+
+    /**
+     * 加载sub context到operation中，表示开始解析子response
+     * @param operation
+     */
+    private static void loadSubContext(Operation operation) {
+        operation.setParseStatus(operation.getSubParseContext().getParseStatus());
+        operation.setResponseType(operation.getSubParseContext().getResponseType());
     }
 
     private static boolean processSimpleReply(ByteBuffer byteBuffer,Operation operation) {
@@ -237,11 +253,11 @@ public class RedisProtocol {
                     writeData(operation, byteBuffer, WritePhase.WRITE_ARGS_R);
                     break;
                 case WRITE_ARGS_R:
-                    byteBuffer.put(specialr);
+                    byteBuffer.put(specialR);
                     operation.setWritePhase(WritePhase.WRITE_ARGS_N);
                     break;
                 case WRITE_ARGS_N:
-                    byteBuffer.put(specialn);
+                    byteBuffer.put(specialN);
                     operation.setWritePhase(WritePhase.WRITE_DOLLAR);
                     break;
                 case WRITE_DOLLAR:
@@ -252,22 +268,22 @@ public class RedisProtocol {
                     writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_LENGTH_R);
                     break;
                 case WRITE_COMMAND_LENGTH_R:
-                    byteBuffer.put(specialr);
+                    byteBuffer.put(specialR);
                     operation.setWritePhase(WritePhase.WRITE_COMMAND_LENGTH_N);
                     break;
                 case WRITE_COMMAND_LENGTH_N:
-                    byteBuffer.put(specialn);
+                    byteBuffer.put(specialN);
                     prepareWriteData(StringEncoder.getBytes(operation.getCommand().toString()),WritePhase.WRITE_COMMAND,operation);
                     break;
                 case WRITE_COMMAND:
                     writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_R);
                     break;
                 case WRITE_COMMAND_R:
-                    byteBuffer.put(specialr);
+                    byteBuffer.put(specialR);
                     operation.setWritePhase(WritePhase.WRITE_COMMAND_N);
                     break;
                 case WRITE_COMMAND_N:
-                    byteBuffer.put(specialn);
+                    byteBuffer.put(specialN);
                     operation.setWritePhase(WritePhase.WRITE_ARGS);
                     //这里没有break，抽象出WRITE_ARGS，为了分离代码
                 case WRITE_ARGS:
@@ -284,22 +300,22 @@ public class RedisProtocol {
                     writeData(operation, byteBuffer, WritePhase.WRITE_ARG_LENGTH_R);
                     break;
                 case WRITE_ARG_LENGTH_R:
-                    byteBuffer.put(specialr);
+                    byteBuffer.put(specialR);
                     operation.setWritePhase(WritePhase.WRITE_ARG_LENGTH_N);
                     break;
                 case WRITE_ARG_LENGTH_N:
-                    byteBuffer.put(specialn);
+                    byteBuffer.put(specialN);
                     prepareWriteData(operation.getArgs()[operation.getWriteArgsIndex()],WritePhase.WRITE_ARG,operation);
                     break;
                 case WRITE_ARG:
                     writeData(operation,byteBuffer,WritePhase.WRITE_ARG_R);
                     break;
                 case WRITE_ARG_R:
-                    byteBuffer.put(specialr);
+                    byteBuffer.put(specialR);
                     operation.setWritePhase(WritePhase.WRITE_ARG_N);
                     break;
                 case WRITE_ARG_N:
-                    byteBuffer.put(specialn);
+                    byteBuffer.put(specialN);
                     operation.setWriteArgsIndex(operation.getWriteArgsIndex()+1);//设置写入下一个参数，如果有继续写，没有的话由WRITE_ARGS返回true
                     operation.setWritePhase(WritePhase.WRITE_ARGS);
                     break;

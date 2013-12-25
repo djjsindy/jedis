@@ -60,7 +60,7 @@ public class Operation {
     /**
      * 多重操作中，记录结果的个数，记录中间的数据
      */
-    private StringBuilder mLenstr=new StringBuilder();
+    private StringBuilder mLenStr=new StringBuilder();
 
     /**
      * 记录response数据，二维数组是为了记录mget类，多个返回结果的数据
@@ -218,12 +218,12 @@ public class Operation {
         this.multiDataIndex = multiDataIndex;
     }
 
-    public StringBuilder getmLenstr() {
-        return mLenstr;
+    public StringBuilder getmLenStr() {
+        return mLenStr;
     }
 
-    public void setmLenstr(StringBuilder mLenstr) {
-        this.mLenstr = mLenstr;
+    public void setmLenStr(StringBuilder mLenstr) {
+        this.mLenStr = mLenstr;
     }
 
     public int getmLen() {

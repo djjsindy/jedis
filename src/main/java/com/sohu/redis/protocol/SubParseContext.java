@@ -14,23 +14,9 @@ public class SubParseContext {
     private ParseStatus parseStatus=ParseStatus.RAW;
 
     /**
-     * 单个操作中，response数据的长度，get操作等，记录中间数据，
-     */
-    private StringBuilder dLenStr=new StringBuilder();
-
-    /**
      * 解析multi response，暂存子解析类型
      */
     private ResponseType responseType;
-
-
-    public StringBuilder getdLenStr() {
-        return dLenStr;
-    }
-
-    public void setdLenStr(StringBuilder dLenStr) {
-        this.dLenStr = dLenStr;
-    }
 
     public ParseStatus getParseStatus() {
         return parseStatus;
@@ -46,5 +32,10 @@ public class SubParseContext {
 
     public void setResponseType(ResponseType responseType) {
         this.responseType = responseType;
+    }
+
+    public void clear(){
+        parseStatus=ParseStatus.RAW;
+        responseType=null;
     }
 }
