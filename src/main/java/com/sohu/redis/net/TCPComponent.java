@@ -97,6 +97,7 @@ public class TCPComponent extends Thread {
         SocketChannel socketChannel = (SocketChannel) key.channel();
         ByteBuffer byteBuffer=connection.getWriteByteBuffer();
         Operation operation;
+        connection.getWriteLock().lock();
         //从写队列中拿出operation
         while ((operation=connection.peekWriteCurrentOperation()) != null) {
             //填充operation的数据到byte buffer中，返回是否填充完毕，如果byte buffer不够大，就返回false
@@ -131,6 +132,7 @@ public class TCPComponent extends Thread {
         }
 
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
+        connection.getWriteLock().unlock();
     }
 
     private void handlerRead(SelectionKey key) {
