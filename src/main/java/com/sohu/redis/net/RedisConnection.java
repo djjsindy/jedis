@@ -34,9 +34,9 @@ public class RedisConnection {
 
     private TCPComponent tcpComponent;
 
-    private int rBufSize = 4096;
+    private int rBufSize = 8*1024*2;
 
-    private int wBufSize = 4096;
+    private int wBufSize = 8*1024;
 
     private ReentrantLock writeLock = new ReentrantLock();
 
@@ -93,12 +93,13 @@ public class RedisConnection {
         operation.setFuture(operationFuture);
         pendingQueue.offer(operation);
         //如果队列为空直接写请求，否则加入write队列
-        if (writeQueue.size() == 0) {
-            directWriteOperation(operation);
-        } else {
+//        if (writeQueue.size() == 0) {
+//            System.out.println("direct");
+//            directWriteOperation(operation);
+//        } else {
             writeQueue.add(operation);
             tcpComponent.registerWrite(this);
-        }
+//        }
 
     }
 
@@ -115,6 +116,7 @@ public class RedisConnection {
                 else
                     wbuf.clear();
             } while (!full);
+            tcpComponent.registerRead(this);
         } catch (IOException e) {
             LOGGER.error("write from user error");
         } finally {

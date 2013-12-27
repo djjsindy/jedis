@@ -45,11 +45,11 @@ public class TCPComponent extends Thread {
                 Iterator<SelectionKey> iter = selector.selectedKeys().iterator();
                 while (iter.hasNext()) {
                     SelectionKey key = iter.next();
-                    if (key.isReadable()&&key.isValid()){
+                    if (key.isReadable() && key.isValid()) {
                         handlerRead(key);
-                    }else if(key.isWritable()&&key.isValid()){
+                    } else if (key.isWritable() && key.isValid()) {
                         handlerWrite(key);
-                    }else if(key.isConnectable()&&key.isValid()){
+                    } else if (key.isConnectable() && key.isValid()) {
                         handlerConnect(key);
                     }
                     iter.remove();
@@ -61,11 +61,11 @@ public class TCPComponent extends Thread {
     }
 
     private void handlerConnect(SelectionKey key) {
-        SocketChannel socketChannel = (SocketChannel)key.channel();
+        SocketChannel socketChannel = (SocketChannel) key.channel();
         try {
-            boolean connect=socketChannel.finishConnect();
-            if(connect){
-                key.interestOps(key.interestOps()&~SelectionKey.OP_CONNECT);
+            boolean connect = socketChannel.finishConnect();
+            if (connect) {
+                key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
             }
         } catch (IOException e) {
             LOGGER.error("finish connect error");
@@ -75,14 +75,20 @@ public class TCPComponent extends Thread {
     private void processEvents() {
         try {
             Event event;
+            SelectionKey key;
             while ((event = events.poll()) != null) {
                 switch (event.getEventType()) {
-                    case WRITE:
-                        SelectionKey key=event.getRedisConnection().getSocketChannel().keyFor(selector);
-                        key.interestOps(key.interestOps()|SelectionKey.OP_WRITE);
-                        break;
                     case CONNECT:
-                        event.getRedisConnection().getSocketChannel().register(selector,SelectionKey.OP_CONNECT,event.getRedisConnection());
+                        event.getRedisConnection().getSocketChannel().register(selector, SelectionKey.OP_CONNECT, event.getRedisConnection());
+                        break;
+                    case WRITE:
+                        key = event.getRedisConnection().getSocketChannel().keyFor(selector);
+                        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+                        break;
+
+                    case READ:
+                        key = event.getRedisConnection().getSocketChannel().keyFor(selector);
+                        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
                         break;
                 }
             }
@@ -95,44 +101,55 @@ public class TCPComponent extends Thread {
 
         RedisConnection connection = (RedisConnection) key.attachment();
         SocketChannel socketChannel = (SocketChannel) key.channel();
-        ByteBuffer byteBuffer=connection.getWriteByteBuffer();
+        ByteBuffer byteBuffer = connection.getWriteByteBuffer();
         Operation operation;
-        connection.getWriteLock().lock();
-        //从写队列中拿出operation
-        while ((operation=connection.peekWriteCurrentOperation()) != null) {
-            //填充operation的数据到byte buffer中，返回是否填充完毕，如果byte buffer不够大，就返回false
-            boolean isAll=operation.fillWriteBuf(byteBuffer);
-            try {
-                if(isAll){
+        try {
+            //判断如果当前没有operation了，那么有可能最后一次write没有写完，后面的逻辑不可能再去触发写了
+            //这里把最后的buffer写出去，如果后面还有operation，继续fillcommand就行了
+            if (connection.peekWriteCurrentOperation() == null) {
+                byteBuffer.flip();
+                if (byteBuffer.hasRemaining()) {
+                    socketChannel.write(byteBuffer);
+                    if (byteBuffer.hasRemaining()) {
+                        byteBuffer.compact();
+                        return;
+                    }
+                }
+            }
+            //从写队列中拿出operation
+            while ((operation = connection.peekWriteCurrentOperation()) != null) {
+                //填充operation的数据到byte buffer中，返回是否填充完毕，如果byte buffer不够大，就返回false
+                boolean isAll = operation.fillWriteBuf(byteBuffer);
+                if (isAll) {
                     //如果填充完毕，就从写队列中移除operation
                     connection.pollWriteCurrentOperation();
                     //如果byte buffer 还有容量，并且还有其他的operation需要写数据，那么继续选择其他后面的operation填充byte buffer
-                    if(byteBuffer.hasRemaining()&&connection.peekWriteCurrentOperation()!=null){
+                    if (byteBuffer.hasRemaining() && connection.peekWriteCurrentOperation() != null) {
                         continue;
                     }
                 }
                 //这里表明，byte buffer满了，或者没有其他的operation需要填充了，那么就可以写数据了
                 byteBuffer.flip();
                 socketChannel.write(byteBuffer);
-
-                if(byteBuffer.hasRemaining()){
+                if (byteBuffer.hasRemaining()) {
                     //如果byte buffer中的数据未全写完，那么返回，等待write事件，同时回收byte buffer
                     byteBuffer.compact();
                     return;
-                }else{
+                } else {
                     //byte buffer全部写完，清空byte buffer
                     byteBuffer.clear();
                 }
-            } catch (IOException e) {
-                LOGGER.error("write error");
+
             }
+        } catch (IOException e) {
+            LOGGER.error("write error");
         }
-        if(!key.isReadable()){
+        if (!key.isReadable()) {
             key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         }
 
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
-        connection.getWriteLock().unlock();
+//        connection.getWriteLock().unlock();
     }
 
     private void handlerRead(SelectionKey key) {
@@ -170,8 +187,13 @@ public class TCPComponent extends Thread {
         selector.wakeup();
     }
 
-    public void registerConnect(RedisConnection connection){
-        events.add(new Event(EventType.CONNECT,connection));
+    public void registerConnect(RedisConnection connection) {
+        events.add(new Event(EventType.CONNECT, connection));
+        selector.wakeup();
+    }
+
+    public void registerRead(RedisConnection connection) {
+        events.add(new Event(EventType.READ, connection));
         selector.wakeup();
     }
 

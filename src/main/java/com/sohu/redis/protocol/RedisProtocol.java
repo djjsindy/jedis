@@ -346,11 +346,8 @@ public class RedisProtocol {
         int writeIndex=operation.getWriteDataIndex();
         if(writeIndex<=operation.getWriteTarget().length-1){
             byteBuffer.put(operation.getWriteTarget()[writeIndex]);
-        }
-        if(writeIndex==operation.getWriteTarget().length-1){
+            operation.setWriteDataIndex(writeIndex + 1);
+        }else if(writeIndex==operation.getWriteTarget().length)
             operation.setWritePhase(toPhase);
-        }else{
-            operation.setWriteDataIndex(writeIndex+1);
-        }
     }
 }

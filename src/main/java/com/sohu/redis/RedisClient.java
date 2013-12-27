@@ -395,14 +395,15 @@ public class RedisClient {
         try {
             RedisConnection connection = getConnection(key);
             connection.addOperation(operation);
-            return  ((byte[][]) operation.getFuture().get(TIMEOUT, TimeUnit.SECONDS));
+            return  ((byte[][]) operation.getFuture().get());
         } catch (InterruptedException e) {
             LOGGER.error(e.getMessage());
         } catch (ExecutionException e) {
             LOGGER.error(e.getMessage());
-        } catch (TimeoutException e) {
-            LOGGER.error(e.getMessage());
         }
+//        catch (TimeoutException e) {
+//            LOGGER.error(e.getMessage());
+//        }
         return null;
     }
 

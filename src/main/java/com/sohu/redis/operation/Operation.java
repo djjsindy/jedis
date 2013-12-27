@@ -429,7 +429,7 @@ public class Operation {
     }
 
     /**
-     * 数据接收完毕，tcpcomponent线程把数据set到future里面
+     * 数据接收完毕，TcpComponent线程把数据set到future里面
      */
     public void pushData(){
         this.future.setResult(data);
