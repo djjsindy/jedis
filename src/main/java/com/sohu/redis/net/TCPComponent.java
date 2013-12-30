@@ -142,19 +142,19 @@ public class TCPComponent extends Thread {
                 }
 
             }
-            //最后如果write 队列为空了证明了数据都写了，释放写锁，为了请求直接在add operation中直接写数据
-            if(connection.getWriteQueueSize()==0){
-                connection.getWriteLock().unlock();
-            }
+
         } catch (IOException e) {
             LOGGER.error("write error");
+        }
+        //最后如果write 队列为空了证明了数据都写了，释放写锁，为了请求直接在add operation中直接写数据
+        if(connection.getWriteQueueSize()==0){
+            connection.getWriteLock().unlock();
         }
         if (!key.isReadable()) {
             key.interestOps(key.interestOps() | SelectionKey.OP_READ);
         }
 
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
-//        connection.getWriteLock().unlock();
     }
 
     private void handlerRead(SelectionKey key) {

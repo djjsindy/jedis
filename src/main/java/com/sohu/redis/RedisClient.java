@@ -1,6 +1,7 @@
 package com.sohu.redis;
 
 import com.sohu.redis.model.Pair;
+import com.sohu.redis.model.Tuple;
 import com.sohu.redis.net.RedisConnection;
 import com.sohu.redis.net.RedisNode;
 import com.sohu.redis.operation.Operation;
@@ -303,22 +304,110 @@ public class RedisClient {
         return StringEncoder.getString(response);
     }
 
-    public Long scard(final String key) {
+    public Long scard (String key) {
         Operation operation = new Operation(Operation.Command.SCARD, StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response);
     }
 
-    public Boolean sismember(final String key, final String member) {
+    public Boolean sismember(String key,String member) {
         Operation operation = new Operation(Operation.Command.SISMEMBER, StringEncoder.getBytes(key),StringEncoder.getBytes(member));
         byte[] response = singleKeyRequest(operation, key)[0];
         return buildLong(response)==1;
     }
 
-    public String srandmember(final String key) {
+    public String srandmember(String key) {
         Operation operation = new Operation(Operation.Command.SRANDMEMBER,StringEncoder.getBytes(key));
         byte[] response = singleKeyRequest(operation, key)[0];
         return StringEncoder.getString(response);
+    }
+
+    public Long zadd(String key, double score, String member) {
+        Operation operation = new Operation(Operation.Command.ZADD,StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(score)),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Set<String> zrange(String key,long start,long end) {
+        Operation operation = new Operation(Operation.Command.ZRANGE,StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return StringEncoder.getStringSet(Arrays.asList(response));
+    }
+
+    public Long zrem(String key, String... members) {
+        byte[][] data=new byte[members.length][];
+        int index=0;
+        for(String member:members){
+            data[index++]=StringEncoder.getBytes(member);
+        }
+        Operation operation = new Operation(Operation.Command.ZREM,data);
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public Double zincrby(String key,double score,
+                           String member) {
+        Operation operation = new Operation(Operation.Command.ZINCRBY,StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(score)),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildDouble(response);
+    }
+
+
+    public Long zrank(String key,String member) {
+        Operation operation = new Operation(Operation.Command.ZRANK,StringEncoder.getBytes(key),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public Long zrevrank(String key,String member) {
+        Operation operation = new Operation(Operation.Command.ZREVRANGE,StringEncoder.getBytes(key),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Set<String> zrevrange(String key,long start,
+                                  long end) {
+        Operation operation = new Operation(Operation.Command.ZREVRANGE,StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return StringEncoder.getStringSet(Arrays.asList(response));
+    }
+
+    public Set<Tuple> zrangeWithScores(String key,long start,
+                                        long end) {
+        Operation operation = new Operation(Operation.Command.ZRANGE,StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return buildTupleSet(response);
+    }
+
+
+
+    public Set<Tuple> zrevrangeWithScores(String key,long start,
+                                          long end) {
+        Operation operation = new Operation(Operation.Command.ZREVRANGE,StringEncoder.getBytes(key),StringEncoder.getBytes(String.valueOf(start)),StringEncoder.getBytes(String.valueOf(end)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return buildTupleSet(response);
+    }
+
+
+    public Long zcard(String key) {
+        Operation operation = new Operation(Operation.Command.ZCARD,StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public Double zscore(String key, String member) {
+        Operation operation = new Operation(Operation.Command.ZSCORE,StringEncoder.getBytes(key),StringEncoder.getBytes(member));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildDouble(response);
+    }
+
+    public List<String> sort(final String key) {
+        Operation operation = new Operation(Operation.Command.SORT,StringEncoder.getBytes(key));
+        byte[][] response = singleKeyRequest(operation, key);
+        return StringEncoder.getStringList(Arrays.asList(response));
     }
 
     private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys,String[] values) {
@@ -374,6 +463,24 @@ public class RedisClient {
             sb.append((char)b);
         }
         return Long.valueOf(sb.toString());
+    }
+
+    private Double buildDouble(byte[] response){
+        StringBuilder sb=new StringBuilder();
+        for(byte b:response){
+            sb.append((char)b);
+        }
+        return Double.valueOf(sb.toString());
+    }
+
+    private Set<Tuple> buildTupleSet(byte[][] response) {
+        List<String> membersWithScores = StringEncoder.getStringList(Arrays.asList(response));
+        Set<Tuple> set = new LinkedHashSet<Tuple>();
+        Iterator<String> iterator = membersWithScores.iterator();
+        while (iterator.hasNext()) {
+            set.add(new Tuple(iterator.next(), Double.valueOf(iterator.next())));
+        }
+        return set;
     }
 
 
