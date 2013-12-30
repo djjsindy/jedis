@@ -104,8 +104,9 @@ public class TCPComponent extends Thread {
         ByteBuffer byteBuffer = connection.getWriteByteBuffer();
         Operation operation;
         try {
+            connection.getWriteLock().lock();
             //判断如果当前没有operation了，那么有可能最后一次write没有写完，后面的逻辑不可能再去触发写了
-            //这里把最后的buffer写出去，如果后面还有operation，继续fillcommand就行了
+            //这里把最后的buffer写出去，如果后面还有operation，继续fill command就行了
             if (connection.peekWriteCurrentOperation() == null) {
                 byteBuffer.flip();
                 if (byteBuffer.hasRemaining()) {
@@ -140,6 +141,10 @@ public class TCPComponent extends Thread {
                     byteBuffer.clear();
                 }
 
+            }
+            //最后如果write 队列为空了证明了数据都写了，释放写锁，为了请求直接在add operation中直接写数据
+            if(connection.getWriteQueueSize()==0){
+                connection.getWriteLock().unlock();
             }
         } catch (IOException e) {
             LOGGER.error("write error");

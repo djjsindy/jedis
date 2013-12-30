@@ -92,20 +92,19 @@ public class RedisConnection {
         OperationFuture operationFuture = new OperationFuture();
         operation.setFuture(operationFuture);
         pendingQueue.offer(operation);
-        //如果队列为空直接写请求，否则加入write队列
-//        if (writeQueue.size() == 0) {
-//            System.out.println("direct");
-//            directWriteOperation(operation);
-//        } else {
+        //如果队列为空直接写请求，并且请求write lock，成功direct write，否则加入write队列
+        //加锁失败由于tcpComponent线程在写缓冲队列中的数据，这个过程不应该被打断。
+        if (writeQueue.size() == 0&&writeLock.tryLock()) {
+            directWriteOperation(operation);
+        } else {
             writeQueue.add(operation);
             tcpComponent.registerWrite(this);
-//        }
+        }
 
     }
 
     private void directWriteOperation(Operation operation) {
         try {
-            writeLock.lock();
             boolean full;
             do {
                 full = operation.fillWriteBuf(wbuf);
