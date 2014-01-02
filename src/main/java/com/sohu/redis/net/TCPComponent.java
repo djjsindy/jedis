@@ -37,8 +37,9 @@ public class TCPComponent extends Thread {
     public void run() {
         while (true) {
             try {
-                if (events.size() > 0)
+                if (events.size() > 0){
                     processEvents();
+                }
                 int count = selector.select(1000l);
                 if (count == 0)
                     continue;
@@ -66,6 +67,7 @@ public class TCPComponent extends Thread {
             boolean connect = socketChannel.finishConnect();
             if (connect) {
                 key.interestOps(key.interestOps() & ~SelectionKey.OP_CONNECT);
+                key.interestOps(key.interestOps()|SelectionKey.OP_READ);
             }
         } catch (IOException e) {
             LOGGER.error("finish connect error");
@@ -77,18 +79,23 @@ public class TCPComponent extends Thread {
             Event event;
             SelectionKey key;
             while ((event = events.poll()) != null) {
+                SocketChannel channel=event.getRedisConnection().getSocketChannel();
+                key=channel.keyFor(selector);
                 switch (event.getEventType()) {
                     case CONNECT:
-                        event.getRedisConnection().getSocketChannel().register(selector, SelectionKey.OP_CONNECT, event.getRedisConnection());
+                        channel.register(selector, SelectionKey.OP_CONNECT, event.getRedisConnection());
                         break;
                     case WRITE:
-                        key = event.getRedisConnection().getSocketChannel().keyFor(selector);
-                        key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+                        if((key.interestOps()|SelectionKey.OP_WRITE)!=0){
+                           key.interestOps(key.interestOps() | SelectionKey.OP_WRITE);
+                        }
                         break;
-
                     case READ:
-                        key = event.getRedisConnection().getSocketChannel().keyFor(selector);
-                        key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+                        if(key==null){
+                            channel.register(selector,SelectionKey.OP_READ,event.getRedisConnection());
+                        }else if((key.interestOps()|SelectionKey.OP_READ)!=0){
+                            key.interestOps(key.interestOps() | SelectionKey.OP_READ);
+                        }
                         break;
                 }
             }
@@ -98,7 +105,6 @@ public class TCPComponent extends Thread {
     }
 
     private void handlerWrite(SelectionKey key) {
-
         RedisConnection connection = (RedisConnection) key.attachment();
         SocketChannel socketChannel = (SocketChannel) key.channel();
         ByteBuffer byteBuffer = connection.getWriteByteBuffer();
@@ -150,10 +156,6 @@ public class TCPComponent extends Thread {
         if(connection.getWriteQueueSize()==0){
             connection.getWriteLock().unlock();
         }
-        if (!key.isReadable()) {
-            key.interestOps(key.interestOps() | SelectionKey.OP_READ);
-        }
-
         key.interestOps(key.interestOps() & ~SelectionKey.OP_WRITE);
     }
 
@@ -211,6 +213,9 @@ public class TCPComponent extends Thread {
             boolean connect = channel.connect(new InetSocketAddress(connection.getHost(), connection.getPort()));
             if (!connect) {
                 registerConnect(connection);
+            }else{
+                //开始就会关注读事件
+                registerRead(connection);
             }
         } catch (IOException e) {
             LOGGER.error("socket channel open error", e);

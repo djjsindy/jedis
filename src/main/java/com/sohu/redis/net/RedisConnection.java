@@ -34,7 +34,7 @@ public class RedisConnection {
 
     private TCPComponent tcpComponent;
 
-    private int rBufSize = 8*1024*2;
+    private int rBufSize = 8*1024;
 
     private int wBufSize = 8*1024;
 
@@ -43,8 +43,8 @@ public class RedisConnection {
     public RedisConnection(String host, int port) {
         this.host = host;
         this.port = port;
-        rbuf = ByteBuffer.allocate(rBufSize);
-        wbuf = ByteBuffer.allocate(wBufSize);
+        rbuf = ByteBuffer.allocateDirect(rBufSize);
+        wbuf = ByteBuffer.allocateDirect(wBufSize);
     }
 
     public int getrBufSize() {
@@ -115,7 +115,6 @@ public class RedisConnection {
                 else
                     wbuf.clear();
             } while (!full);
-            tcpComponent.registerRead(this);
         } catch (IOException e) {
             LOGGER.error("write from user error");
         } finally {
