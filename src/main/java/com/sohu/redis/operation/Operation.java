@@ -4,10 +4,15 @@ import com.sohu.redis.protocol.ParseStatus;
 import com.sohu.redis.protocol.RedisProtocol;
 import com.sohu.redis.protocol.SubParseContext;
 import com.sohu.redis.protocol.WritePhase;
+import com.sohu.redis.transform.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Created by jianjundeng on 12/15/13.
@@ -110,6 +115,13 @@ public class Operation {
     public Operation(Command command, byte[]... args) {
         this.command=command;
         this.args=args;
+    }
+
+    public void addArgs(List<byte[]> newArgs){
+        List<byte[]> list= Arrays.asList(args);
+        list.addAll(newArgs);
+        byte[][] temp=new byte[list.size()][];
+        args=list.toArray(temp);
     }
 
     public boolean completeData(ByteBuffer byteBuffer) {
@@ -373,6 +385,49 @@ public class Operation {
         GETBIT,
         SETRANGE,
         GETRANGE;
+
+        public byte[] getBytes(){
+            return StringEncoder.getBytes(this.name());
+        }
+    }
+
+    public enum Keyword {
+        AGGREGATE,
+        ALPHA,
+        ASC,
+        BY,
+        DESC,
+        GET,
+        LIMIT,
+        MESSAGE,
+        NO,
+        NOSORT,
+        PMESSAGE,
+        PSUBSCRIBE,
+        PUNSUBSCRIBE,
+        OK,
+        ONE,
+        QUEUED,
+        SET,
+        STORE,
+        SUBSCRIBE,
+        UNSUBSCRIBE,
+        WEIGHTS,
+        WITHSCORES,
+        RESETSTAT,
+        RESET,
+        FLUSH,
+        EXISTS,
+        LOAD,
+        KILL,
+        LEN,
+        REFCOUNT,
+        ENCODING,
+        IDLETIME;
+
+        public byte[] getBytes(){
+            return StringEncoder.getBytes(this.name());
+        }
     }
 
     /**

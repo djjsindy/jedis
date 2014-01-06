@@ -1,6 +1,7 @@
 package com.sohu.redis;
 
 import com.sohu.redis.model.Pair;
+import com.sohu.redis.model.SortingParams;
 import com.sohu.redis.model.Tuple;
 import com.sohu.redis.net.RedisConnection;
 import com.sohu.redis.net.RedisNode;
@@ -404,11 +405,20 @@ public class RedisClient {
         return buildDouble(response);
     }
 
-    public List<String> sort(final String key) {
+    public List<String> sort(String key) {
         Operation operation = new Operation(Operation.Command.SORT,StringEncoder.getBytes(key));
         byte[][] response = singleKeyRequest(operation, key);
         return StringEncoder.getStringList(Arrays.asList(response));
     }
+
+    public List<String> sort(final String key,SortingParams sortingParameters){
+        Operation operation = new Operation(Operation.Command.SORT,StringEncoder.getBytes(key));
+        operation.addArgs(sortingParameters.getParams());
+        byte[][] response = singleKeyRequest(operation, key);
+        return StringEncoder.getStringList(Arrays.asList(response));
+    }
+
+
 
     private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys,String[] values) {
         List<byte[]> result=new ArrayList<byte[]>();

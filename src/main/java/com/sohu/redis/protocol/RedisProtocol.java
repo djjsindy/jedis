@@ -32,15 +32,7 @@ public class RedisProtocol {
      * @return
      */
     private static byte[] buildInt(int value) {
-        byte[] temp=new byte[20];
-        String str=Integer.toString(value);
-        int index=0;
-        for(char c:str.toCharArray()){
-            temp[index++]=(byte)c;
-        }
-        byte[] result=new byte[index];
-        System.arraycopy(temp,0,result,0,index);
-        return result;
+        return Integer.toString(value).getBytes();
     }
 
     public static boolean processResult(ByteBuffer buffer,Operation operation) {
@@ -53,7 +45,7 @@ public class RedisProtocol {
                     operation.setParseStatus(ParseStatus.READ_MSG);
                     return processSimpleReply(buffer, operation);
                 case ASTERISK_BYTE:
-                    operation.setResponseType(ResponseType.MutilReply);
+                    operation.setResponseType(ResponseType.MultiReply);
                     operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH);
                     return processMultiBulkReply(buffer, operation);
                 case COLON_BYTE:
@@ -74,7 +66,7 @@ public class RedisProtocol {
                     return processSimpleReply(buffer,operation);
                 case BulkReply:
                     return processBulkReply(buffer, operation);
-                case MutilReply:
+                case MultiReply:
                     return processMultiBulkReply(buffer,operation);
                 default:
                     return true;
@@ -92,7 +84,7 @@ public class RedisProtocol {
                 //还原主请求状态
                 loadPrimaryContext(operation);
                 operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
-                operation.setResponseType(ResponseType.MutilReply);
+                operation.setResponseType(ResponseType.MultiReply);
                 if(complete){
                     int multiDataIndex=operation.getMutilDataIndex();
                     if(multiDataIndex==operation.getmLen()-1){
