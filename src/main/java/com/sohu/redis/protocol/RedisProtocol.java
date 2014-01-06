@@ -363,33 +363,33 @@ public class RedisProtocol {
     public static void callback(Response msgResponse, PubSubCallBack pubSubCallBack) {
         List<byte[]> reply = Arrays.asList(msgResponse.getData());
         byte[] type = reply.get(0);
-        String typeStr = StringEncoder.getString(type);
+        String typeStr = StringEncoder.getString(type).toUpperCase();
         int subscribedChannels;
         String strchannel;
         String msg;
         String bpattern;
-        if (typeStr.equals(Operation.Keyword.SUBSCRIBE)) {
+        if (typeStr.equals(Operation.Keyword.SUBSCRIBE.name())) {
             subscribedChannels = buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
             pubSubCallBack.onSubscribe(strchannel, subscribedChannels);
-        }else if(typeStr.equals(Operation.Keyword.UNSUBSCRIBE)){
+        }else if(typeStr.equals(Operation.Keyword.UNSUBSCRIBE.name())){
             subscribedChannels = buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
             pubSubCallBack.onUnsubscribe(strchannel, subscribedChannels);
-        }else if(typeStr.equals(Operation.Keyword.MESSAGE)){
+        }else if(typeStr.equals(Operation.Keyword.MESSAGE.name())){
             strchannel = StringEncoder.getString(reply.get(1));
             msg=StringEncoder.getString(reply.get(2));
             pubSubCallBack.onMessage(strchannel, msg);
-        }else if(typeStr.equals(Operation.Keyword.PMESSAGE)){
+        }else if(typeStr.equals(Operation.Keyword.PMESSAGE.name())){
             bpattern=StringEncoder.getString(reply.get(1));
             strchannel = StringEncoder.getString(reply.get(2));
             msg=StringEncoder.getString(reply.get(3));
             pubSubCallBack.onPMessage(bpattern,strchannel,msg);
-        }else if(typeStr.equals(Operation.Keyword.PSUBSCRIBE)){
+        }else if(typeStr.equals(Operation.Keyword.PSUBSCRIBE.name())){
             subscribedChannels=buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
             pubSubCallBack.onPSubscribe(strchannel,subscribedChannels);
-        }else if(typeStr.equals(Operation.Keyword.PUNSUBSCRIBE)){
+        }else if(typeStr.equals(Operation.Keyword.PUNSUBSCRIBE.name())){
             subscribedChannels=buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
             pubSubCallBack.onPUnsubscribe(strchannel,subscribedChannels);

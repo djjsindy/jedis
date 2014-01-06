@@ -1,8 +1,11 @@
 package com.sohu.redis;
 
 import com.sohu.redis.model.Pair;
+import com.sohu.redis.model.PubSubCallBack;
 import com.sohu.redis.model.SortingParams;
 import com.sohu.redis.model.Tuple;
+import com.sohu.redis.net.Connection;
+import com.sohu.redis.net.PubSubConnection;
 import com.sohu.redis.net.RedisConnection;
 import com.sohu.redis.net.RedisNode;
 import com.sohu.redis.operation.Operation;
@@ -418,26 +421,36 @@ public class RedisClient {
         return StringEncoder.getStringList(Arrays.asList(response));
     }
 
+    public void subScribe(String channel,PubSubCallBack pubSubCallBack){
+        Operation operation = new Operation(Operation.Command.SUBSCRIBE,StringEncoder.getBytes(channel));
+        subPubRequest(operation,channel,pubSubCallBack);
+    }
+
+    public void unSubScribe(String channel,PubSubCallBack pubSubCallBack){
+        Operation operation = new Operation(Operation.Command.UNSUBSCRIBE,StringEncoder.getBytes(channel));
+        subPubRequest(operation,channel,pubSubCallBack);
+    }
+
 
 
     private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys,String[] values) {
         List<byte[]> result=new ArrayList<byte[]>();
         //按照key找connection
-        Map<RedisConnection,List<Pair>> data=new HashMap<RedisConnection, List<Pair>>();
+        Map<Connection,List<Pair>> data=new HashMap<Connection, List<Pair>>();
         int i=0;
         for(String key:keys){
-            RedisConnection redisConnection=getConnection(key);
-            List<Pair> keyList=data.get(redisConnection);
+            Connection connection=getRedisConnection(key);
+            List<Pair> keyList=data.get(connection);
             if(keyList==null){
                 keyList=new ArrayList<Pair>();
-                data.put(redisConnection,keyList);
+                data.put(connection,keyList);
             }
             keyList.add(new Pair(key,values==null?null:values[i]));
             i++;
         }
         //组装multi args operation，加入connection write queue
         List<Operation> operations=new ArrayList<Operation>();
-        for(Map.Entry<RedisConnection,List<Pair>> entry:data.entrySet()){
+        for(Map.Entry<Connection,List<Pair>> entry:data.entrySet()){
             Operation operation = new Operation(command);
             byte[][] args=new byte[entry.getValue().size()*(values==null?1:2)][];
             int index=0;
@@ -494,9 +507,15 @@ public class RedisClient {
     }
 
 
-    private RedisConnection getConnection(String key) {
+    private Connection getRedisConnection(String key) {
         RedisNode redisNode = nodeSelector.getNodeByKey(key);
         RedisConnection connection = redisNode.getAvailableConnection();
+        return connection;
+    }
+
+    private Connection getSubPubConnection(String key){
+        RedisNode redisNode = nodeSelector.getNodeByKey(key);
+        Connection connection = redisNode.getPubSubConnection();
         return connection;
     }
 
@@ -508,9 +527,21 @@ public class RedisClient {
         return connections;
     }
 
+    private void subPubRequest(Operation operation, String channel, PubSubCallBack pubSubCallBack){
+        PubSubConnection connection=(PubSubConnection)getSubPubConnection(channel);
+        connection.setPubSubCallBack(pubSubCallBack);
+        connection.addOperation(operation);
+    }
+
+    private void unSubPubRequest(Operation operation,String channel,PubSubCallBack pubSubCallBack){
+        PubSubConnection connection=(PubSubConnection)getSubPubConnection(channel);
+        connection.setPubSubCallBack(pubSubCallBack);
+        connection.addOperation(operation);
+    }
+
     private byte[][] singleKeyRequest(Operation operation, String key) {
         try {
-            RedisConnection connection = getConnection(key);
+            Connection connection = getRedisConnection(key);
             connection.addOperation(operation);
             return  ((byte[][]) operation.getFuture().get());
         } catch (InterruptedException e) {

@@ -10,13 +10,13 @@ import java.io.IOException;
 /**
  * Created by jianjundeng on 1/6/14.
  */
-public class PubSubConnection extends AbstractConnection{
+public class PubSubConnection extends AbstractConnection {
 
     private PubSubCallBack pubSubCallBack;
 
     private Operation operation;
 
-    private Response msgResponse=new Response();
+    private Response msgResponse = new Response();
 
     public PubSubConnection(String host, int port) {
         super(host, port);
@@ -24,7 +24,7 @@ public class PubSubConnection extends AbstractConnection{
 
     @Override
     public void addOperation(Operation operation) {
-        this.operation=operation;
+        this.operation = operation;
         directWriteOperation(operation);
     }
 
@@ -38,22 +38,12 @@ public class PubSubConnection extends AbstractConnection{
                     rbuf.flip();
                     //byte buffer中有数据，就从pending队列中取出operation，pipeline
                     while (rbuf.hasRemaining()) {
-                        if(!operation.isFinish()){
-                            boolean result = operation.completeData(rbuf);
-                            if (result) {
-                                //operation解析byte buffer中的数据完整了，回调客户端线程
-                                operation.pushData();
-                            }else{
-                                return;
-                            }
-                        }else{
-                            boolean result=RedisProtocol.processResult(rbuf, msgResponse);
-                            if(result){
-                                RedisProtocol.callback(msgResponse,pubSubCallBack);
-                                msgResponse.clear();
-                            }else{
-                                return;
-                            }
+                        boolean result = RedisProtocol.processResult(rbuf, msgResponse);
+                        if (result) {
+                            RedisProtocol.callback(msgResponse, pubSubCallBack);
+                            msgResponse.clear();
+                        } else {
+                            return;
                         }
                     }
                     rbuf.clear();
@@ -68,7 +58,7 @@ public class PubSubConnection extends AbstractConnection{
 
     @Override
     public void handleWrite() {
-       //nothing to do
+        //nothing to do
     }
 
     public PubSubCallBack getPubSubCallBack() {
