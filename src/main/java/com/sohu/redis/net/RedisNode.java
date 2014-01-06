@@ -24,11 +24,10 @@ public class RedisNode {
         //connect
         connections=new ArrayList<RedisConnection>(conNum);
         for(int i=0;i<conNum;i++){
-            connections.add(new RedisConnection(host,port));
-        }
-        for(RedisConnection connection:connections)
+            RedisConnection connection=new RedisConnection(host,port);
+            connections.add(connection);
             tcpComponent.register(connection);
-
+        }
         pubSubConnection=new PubSubConnection(host,port);
         tcpComponent.register(pubSubConnection);
     }

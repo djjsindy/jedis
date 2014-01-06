@@ -1,6 +1,7 @@
 package com.sohu.redis.protocol;
 
 import com.sohu.redis.model.PubSubCallBack;
+import com.sohu.redis.net.PubSubConnection;
 import com.sohu.redis.operation.*;
 import com.sohu.redis.transform.StringEncoder;
 import org.slf4j.Logger;
@@ -360,7 +361,7 @@ public class RedisProtocol {
             request.setWritePhase(toPhase);
     }
 
-    public static void callback(Response msgResponse, PubSubCallBack pubSubCallBack) {
+    public static void callback(Response msgResponse,PubSubConnection connection) {
         List<byte[]> reply = Arrays.asList(msgResponse.getData());
         byte[] type = reply.get(0);
         String typeStr = StringEncoder.getString(type).toUpperCase();
@@ -371,27 +372,33 @@ public class RedisProtocol {
         if (typeStr.equals(Operation.Keyword.SUBSCRIBE.name())) {
             subscribedChannels = buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
+            PubSubCallBack pubSubCallBack=connection.getCallBackMap().get(strchannel);
             pubSubCallBack.onSubscribe(strchannel, subscribedChannels);
         }else if(typeStr.equals(Operation.Keyword.UNSUBSCRIBE.name())){
             subscribedChannels = buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
+            PubSubCallBack pubSubCallBack=connection.getCallBackMap().get(strchannel);
             pubSubCallBack.onUnsubscribe(strchannel, subscribedChannels);
         }else if(typeStr.equals(Operation.Keyword.MESSAGE.name())){
             strchannel = StringEncoder.getString(reply.get(1));
             msg=StringEncoder.getString(reply.get(2));
+            PubSubCallBack pubSubCallBack=connection.getCallBackMap().get(strchannel);
             pubSubCallBack.onMessage(strchannel, msg);
         }else if(typeStr.equals(Operation.Keyword.PMESSAGE.name())){
             bpattern=StringEncoder.getString(reply.get(1));
             strchannel = StringEncoder.getString(reply.get(2));
             msg=StringEncoder.getString(reply.get(3));
+            PubSubCallBack pubSubCallBack=connection.getCallBackMap().get(strchannel);
             pubSubCallBack.onPMessage(bpattern,strchannel,msg);
         }else if(typeStr.equals(Operation.Keyword.PSUBSCRIBE.name())){
             subscribedChannels=buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
+            PubSubCallBack pubSubCallBack=connection.getCallBackMap().get(strchannel);
             pubSubCallBack.onPSubscribe(strchannel,subscribedChannels);
         }else if(typeStr.equals(Operation.Keyword.PUNSUBSCRIBE.name())){
             subscribedChannels=buildLong(reply.get(2)).intValue();
             strchannel = StringEncoder.getString(reply.get(1));
+            PubSubCallBack pubSubCallBack=connection.getCallBackMap().get(strchannel);
             pubSubCallBack.onPUnsubscribe(strchannel,subscribedChannels);
         }
     }

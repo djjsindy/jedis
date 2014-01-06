@@ -6,25 +6,25 @@ import com.sohu.redis.operation.Response;
 import com.sohu.redis.protocol.RedisProtocol;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Created by jianjundeng on 1/6/14.
  */
 public class PubSubConnection extends AbstractConnection {
 
-    private PubSubCallBack pubSubCallBack;
-
-    private Operation operation;
+    private Map<String,PubSubCallBack> callBackMap;
 
     private Response msgResponse = new Response();
 
     public PubSubConnection(String host, int port) {
         super(host, port);
+        callBackMap=new HashMap<String, PubSubCallBack>();
     }
 
     @Override
     public void addOperation(Operation operation) {
-        this.operation = operation;
         directWriteOperation(operation);
     }
 
@@ -40,7 +40,7 @@ public class PubSubConnection extends AbstractConnection {
                     while (rbuf.hasRemaining()) {
                         boolean result = RedisProtocol.processResult(rbuf, msgResponse);
                         if (result) {
-                            RedisProtocol.callback(msgResponse, pubSubCallBack);
+                            RedisProtocol.callback(msgResponse,this);
                             msgResponse.clear();
                         } else {
                             return;
@@ -61,11 +61,11 @@ public class PubSubConnection extends AbstractConnection {
         //nothing to do
     }
 
-    public PubSubCallBack getPubSubCallBack() {
-        return pubSubCallBack;
+    public void addCallBack(String channel,PubSubCallBack pubSubCallBack){
+        callBackMap.put(channel, pubSubCallBack);
     }
 
-    public void setPubSubCallBack(PubSubCallBack pubSubCallBack) {
-        this.pubSubCallBack = pubSubCallBack;
+    public Map<String,PubSubCallBack> getCallBackMap(){
+        return callBackMap;
     }
 }

@@ -431,6 +431,69 @@ public class RedisClient {
         subPubRequest(operation,channel,pubSubCallBack);
     }
 
+    public Long publish(String channel, String message) {
+        Operation operation = new Operation(Operation.Command.PUBLISH,StringEncoder.getBytes(channel),StringEncoder.getBytes(message));
+        byte[] response = singleKeyRequest(operation, channel)[0];
+        return buildLong(response);
+    }
+
+
+
+    public Long zcount(String key,double min,double max) {
+        Operation operation = new Operation(Operation.Command.ZCOUNT,StringEncoder.getBytes(key),StringEncoder.getBytes(Double.toString(min)),StringEncoder.getBytes(Double.toString(max)));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Long zcount(String key, String min, String max) {
+        Operation operation = new Operation(Operation.Command.ZCOUNT,StringEncoder.getBytes(key),StringEncoder.getBytes(min),StringEncoder.getBytes(max));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Set<String> zrangeByScore(String key,double min, double max) {
+        Operation operation = new Operation(Operation.Command.ZRANGEBYSCORE,StringEncoder.getBytes(key),StringEncoder.getBytes(Double.toString(min)),StringEncoder.getBytes(Double.toString(max)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return buildSet(response);
+    }
+
+    public Set<String> zrangeByScore(String key, String min, String max) {
+        Operation operation = new Operation(Operation.Command.ZRANGEBYSCORE,StringEncoder.getBytes(key),StringEncoder.getBytes(min),StringEncoder.getBytes(max));
+        byte[][] response = singleKeyRequest(operation, key);
+        return buildSet(response);
+    }
+
+    public Set<String> zrangeByScore(String key, double min,
+                                      double max, int offset, int count) {
+        Operation operation = new Operation(Operation.Command.ZRANGEBYSCORE,StringEncoder.getBytes(key),StringEncoder.getBytes(Double.toString(min)),StringEncoder.getBytes(Double.toString(max)),StringEncoder.getBytes(Integer.toString(offset)),StringEncoder.getBytes(Integer.toString(count)));
+        byte[][] response = singleKeyRequest(operation, key);
+        return buildSet(response);
+    }
+
+    public Long strlen(final String key) {
+        Operation operation = new Operation(Operation.Command.STRLEN,StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Long lpushx(final String key, final String s) {
+        Operation operation = new Operation(Operation.Command.LPUSHX,StringEncoder.getBytes(key),StringEncoder.getBytes(s));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+
+    public Long persist(final String key) {
+        Operation operation = new Operation(Operation.Command.PERSIST,StringEncoder.getBytes(key));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
+
+    public Long rpushx(final String key, final String s) {
+        Operation operation = new Operation(Operation.Command.RPUSHX,StringEncoder.getBytes(key),StringEncoder.getBytes(s));
+        byte[] response = singleKeyRequest(operation, key)[0];
+        return buildLong(response);
+    }
 
 
     private List<byte[]> multiKeyRequest(Operation.Command command, String[] keys,String[] values) {
@@ -469,11 +532,11 @@ public class RedisClient {
             try {
                 result.addAll(Arrays.asList((byte[][]) operation.getFuture().get(TIMEOUT, TimeUnit.SECONDS)));
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                LOGGER.error(e.getMessage());
             } catch (ExecutionException e) {
-                e.printStackTrace();
+                LOGGER.error(e.getMessage());
             } catch (TimeoutException e) {
-                e.printStackTrace();
+                LOGGER.error(e.getMessage());
             }
         }
         return result;
@@ -506,6 +569,16 @@ public class RedisClient {
         return set;
     }
 
+    private Set<String> buildSet(byte[][] response) {
+        List<String> membersWithScores = StringEncoder.getStringList(Arrays.asList(response));
+        Set<String> set = new LinkedHashSet<String>();
+        Iterator<String> iterator = membersWithScores.iterator();
+        while (iterator.hasNext()) {
+            set.add(iterator.next());
+        }
+        return set;
+    }
+
 
     private Connection getRedisConnection(String key) {
         RedisNode redisNode = nodeSelector.getNodeByKey(key);
@@ -529,15 +602,15 @@ public class RedisClient {
 
     private void subPubRequest(Operation operation, String channel, PubSubCallBack pubSubCallBack){
         PubSubConnection connection=(PubSubConnection)getSubPubConnection(channel);
-        connection.setPubSubCallBack(pubSubCallBack);
+        connection.addCallBack(channel, pubSubCallBack);
         connection.addOperation(operation);
     }
 
-    private void unSubPubRequest(Operation operation,String channel,PubSubCallBack pubSubCallBack){
+    private void unSubPubRequest(Operation operation,String channel){
         PubSubConnection connection=(PubSubConnection)getSubPubConnection(channel);
-        connection.setPubSubCallBack(pubSubCallBack);
         connection.addOperation(operation);
     }
+ 
 
     private byte[][] singleKeyRequest(Operation operation, String key) {
         try {
@@ -549,9 +622,6 @@ public class RedisClient {
         } catch (ExecutionException e) {
             LOGGER.error(e.getMessage());
         }
-//        catch (TimeoutException e) {
-//            LOGGER.error(e.getMessage());
-//        }
         return null;
     }
 
