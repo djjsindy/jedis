@@ -447,7 +447,7 @@ public class RedisClient {
                     args[index++]=StringEncoder.getBytes(pair.getValue());
                 }
             }
-            operation.setArgs(args);
+            operation.getRequest().setArgs(args);
             entry.getKey().addOperation(operation);
             operations.add(operation);
         }

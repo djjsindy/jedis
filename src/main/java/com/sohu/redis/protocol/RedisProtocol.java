@@ -1,11 +1,14 @@
 package com.sohu.redis.protocol;
 
+import com.sohu.redis.model.PubSubCallBack;
 import com.sohu.redis.operation.*;
 import com.sohu.redis.transform.StringEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Created by jianjundeng on 12/17/13.
@@ -28,6 +31,7 @@ public class RedisProtocol {
 
     /**
      * 把int组装成byte array
+     *
      * @param value
      * @return
      */
@@ -35,39 +39,47 @@ public class RedisProtocol {
         return Integer.toString(value).getBytes();
     }
 
-    public static boolean processResult(ByteBuffer buffer,Operation operation) {
-        if(operation.getParseStatus()==ParseStatus.RAW){
+    private static Long buildLong(byte[] response) {
+        StringBuilder sb = new StringBuilder();
+        for (byte b : response) {
+            sb.append((char) b);
+        }
+        return Long.valueOf(sb.toString());
+    }
+
+    public static boolean processResult(ByteBuffer buffer, Response response) {
+        if (response.getParseStatus() == ParseStatus.RAW) {
             byte b = buffer.get();
-            switch (b){
+            switch (b) {
                 case MINUS_BYTE:
-                    operation.setResponseType(ResponseType.SimpleReply);
-                    operation.setException(true);
-                    operation.setParseStatus(ParseStatus.READ_MSG);
-                    return processSimpleReply(buffer, operation);
+                    response.setResponseType(ResponseType.SimpleReply);
+                    response.setException(true);
+                    response.setParseStatus(ParseStatus.READ_MSG);
+                    return processSimpleReply(buffer, response);
                 case ASTERISK_BYTE:
-                    operation.setResponseType(ResponseType.MultiReply);
-                    operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH);
-                    return processMultiBulkReply(buffer, operation);
+                    response.setResponseType(ResponseType.MultiReply);
+                    response.setParseStatus(ParseStatus.READ_RESULT_LENGTH);
+                    return processMultiBulkReply(buffer, response);
                 case COLON_BYTE:
                 case PLUS_BYTE:
-                    operation.setResponseType(ResponseType.SimpleReply);
-                    operation.setParseStatus(ParseStatus.READ_MSG);
-                    return processSimpleReply(buffer, operation);
+                    response.setResponseType(ResponseType.SimpleReply);
+                    response.setParseStatus(ParseStatus.READ_MSG);
+                    return processSimpleReply(buffer, response);
                 case DOLLAR_BYTE:
-                    operation.setResponseType(ResponseType.BulkReply);
-                    operation.setParseStatus(ParseStatus.READ_LENGTH);
-                    return processBulkReply(buffer,operation);
+                    response.setResponseType(ResponseType.BulkReply);
+                    response.setParseStatus(ParseStatus.READ_LENGTH);
+                    return processBulkReply(buffer, response);
                 default:
                     return true;
-            }              
-        }else{
-            switch (operation.getResponseType()){
+            }
+        } else {
+            switch (response.getResponseType()) {
                 case SimpleReply:
-                    return processSimpleReply(buffer,operation);
+                    return processSimpleReply(buffer, response);
                 case BulkReply:
-                    return processBulkReply(buffer, operation);
+                    return processBulkReply(buffer, response);
                 case MultiReply:
-                    return processMultiBulkReply(buffer,operation);
+                    return processMultiBulkReply(buffer, response);
                 default:
                     return true;
             }
@@ -75,43 +87,43 @@ public class RedisProtocol {
 
     }
 
-    private static boolean  processMultiBulkReply(ByteBuffer byteBuffer,Operation operation) {
-        while(byteBuffer.position()<byteBuffer.limit()){
-             if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_N){
+    private static boolean processMultiBulkReply(ByteBuffer byteBuffer, Response response) {
+        while (byteBuffer.position() < byteBuffer.limit()) {
+            if (response.getParseStatus() == ParseStatus.READ_RESULT_LENGTH_N) {
                 //取出上次的解析状态
-                loadSubContext(operation);
-                boolean complete=processResult(byteBuffer,operation);
+                loadSubContext(response);
+                boolean complete = processResult(byteBuffer, response);
                 //还原主请求状态
-                loadPrimaryContext(operation);
-                operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
-                operation.setResponseType(ResponseType.MultiReply);
-                if(complete){
-                    int multiDataIndex=operation.getMutilDataIndex();
-                    if(multiDataIndex==operation.getmLen()-1){
+                loadPrimaryContext(response);
+                response.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
+                response.setResponseType(ResponseType.MultiReply);
+                if (complete) {
+                    int multiDataIndex = response.getMultiDataIndex();
+                    if (multiDataIndex == response.getmLen() - 1) {
                         //解析到最后一个multi response了
                         return true;
-                    }else{
+                    } else {
                         //设置index+1
-                        operation.setMutilDataIndex(multiDataIndex+1);
+                        response.setMultiDataIndex(multiDataIndex + 1);
                         //由于dLenStr每次都是append操作，这里需要清空
-                        operation.setdLenStr(new StringBuilder());
+                        response.setdLenStr(new StringBuilder());
                         //还原subContext的状态，为解析下一个sub response做准备
-                        operation.getSubParseContext().clear();
+                        response.getSubParseContext().clear();
                     }
-                }else{
+                } else {
                     return false;
                 }
                 continue;
             }
-            int b=byteBuffer.get();
-            if(b==specialR&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
-                operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_R);
-            }else if(b==specialN&&operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH_R){
-                int length=Integer.parseInt(operation.getmLenStr().toString());
-                operation.setmLen(length);
-                operation.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
-            }else if(operation.getParseStatus()==ParseStatus.READ_RESULT_LENGTH){
-                operation.getmLenStr().append((char)b);
+            int b = byteBuffer.get();
+            if (b == specialR && response.getParseStatus() == ParseStatus.READ_RESULT_LENGTH) {
+                response.setParseStatus(ParseStatus.READ_RESULT_LENGTH_R);
+            } else if (b == specialN && response.getParseStatus() == ParseStatus.READ_RESULT_LENGTH_R) {
+                int length = Integer.parseInt(response.getmLenStr().toString());
+                response.setmLen(length);
+                response.setParseStatus(ParseStatus.READ_RESULT_LENGTH_N);
+            } else if (response.getParseStatus() == ParseStatus.READ_RESULT_LENGTH) {
+                response.getmLenStr().append((char) b);
             }
         }
         return false;
@@ -119,33 +131,34 @@ public class RedisProtocol {
 
     /**
      * 从sub context中load主operation的状态
-     * @param operation
+     *
+     * @param response
      */
-    private static void loadPrimaryContext(Operation operation) {
-        operation.getSubParseContext().setParseStatus(operation.getParseStatus());
-        operation.getSubParseContext().setResponseType(operation.getResponseType());
+    private static void loadPrimaryContext(Response response) {
+        response.getSubParseContext().setParseStatus(response.getParseStatus());
+        response.getSubParseContext().setResponseType(response.getResponseType());
     }
 
     /**
      * 加载sub context到operation中，表示开始解析子response
-     * @param operation
+     *
+     * @param response
      */
-    private static void loadSubContext(Operation operation) {
-        operation.setParseStatus(operation.getSubParseContext().getParseStatus());
-        operation.setResponseType(operation.getSubParseContext().getResponseType());
+    private static void loadSubContext(Response response) {
+        response.setParseStatus(response.getSubParseContext().getParseStatus());
+        response.setResponseType(response.getSubParseContext().getResponseType());
     }
 
-    private static boolean processSimpleReply(ByteBuffer byteBuffer,Operation operation) {
-        while(byteBuffer.position()<byteBuffer.limit()){
-            int b=byteBuffer.get();
-            if(b=='\r'&&operation.getParseStatus()==ParseStatus.READ_MSG){
-                operation.setParseStatus(ParseStatus.MSG_R);
-            }else if(b=='\n'&& operation.getParseStatus()==ParseStatus.MSG_R){
-                operation.compactMsgData();
+    private static boolean processSimpleReply(ByteBuffer byteBuffer, Response response) {
+        while (byteBuffer.position() < byteBuffer.limit()) {
+            int b = byteBuffer.get();
+            if (b == '\r' && response.getParseStatus() == ParseStatus.READ_MSG) {
+                response.setParseStatus(ParseStatus.MSG_R);
+            } else if (b == '\n' && response.getParseStatus() == ParseStatus.MSG_R) {
+                response.compactMsgData();
                 return true;
-            }
-            else if(operation.getParseStatus()==ParseStatus.READ_MSG){
-                operation.addMsgData((byte)b);
+            } else if (response.getParseStatus() == ParseStatus.READ_MSG) {
+                response.addMsgData((byte) b);
             }
         }
         return false;
@@ -153,56 +166,57 @@ public class RedisProtocol {
 
     /**
      * 解析请求
+     *
      * @param byteBuffer
-     * @param operation
+     * @param response
      * @return
      */
-    private static boolean processBulkReply(ByteBuffer byteBuffer,Operation operation) {
-        while(byteBuffer.position()<byteBuffer.limit()){
+    private static boolean processBulkReply(ByteBuffer byteBuffer, Response response) {
+        while (byteBuffer.position() < byteBuffer.limit()) {
             //按照byte buffer的remaining和实际这块数据大小做对比
             //如果实际这块数据的数据量大于remaining，说明read数据没有read完全，需要继续read
             //否则就说明remaining中的数据，完全满足真是数据量的大小，那么直接批量copy就行，设置next状态
-            if(operation.getParseStatus()==ParseStatus.READ_LENGTH_N){
-                int len=operation.getdLast();
-                int remaining=byteBuffer.remaining();
-                if(len<=remaining){
-                    operation.addData(byteBuffer,len);
-                    operation.setParseStatus(ParseStatus.READ_DATA_END);
-                }else{
-                    operation.addData(byteBuffer, remaining);
-                    operation.setdLast(len-remaining);
+            if (response.getParseStatus() == ParseStatus.READ_LENGTH_N) {
+                int len = response.getdLast();
+                int remaining = byteBuffer.remaining();
+                if (len <= remaining) {
+                    response.addData(byteBuffer, len);
+                    response.setParseStatus(ParseStatus.READ_DATA_END);
+                } else {
+                    response.addData(byteBuffer, remaining);
+                    response.setdLast(len - remaining);
                     return false;
                 }
                 continue;
             }
-            int b=byteBuffer.get();
-            switch (operation.getParseStatus()){
+            int b = byteBuffer.get();
+            switch (response.getParseStatus()) {
                 case READ_LENGTH:
-                    if(b=='\r'){
-                        operation.setParseStatus(ParseStatus.READ_LENGTH_R);
-                    }else{
-                        operation.getdLenStr().append((char)b);
+                    if (b == '\r') {
+                        response.setParseStatus(ParseStatus.READ_LENGTH_R);
+                    } else {
+                        response.getdLenStr().append((char) b);
                     }
                     break;
                 case READ_LENGTH_R:
-                    if(b=='\n'){
-                        operation.setParseStatus(ParseStatus.READ_LENGTH_N);
-                        int length=Integer.parseInt(operation.getdLenStr().toString());
-                        if(length>=0){
-                            operation.setdLast(length);
-                        }else{
-                            operation.addData(null,0);
+                    if (b == '\n') {
+                        response.setParseStatus(ParseStatus.READ_LENGTH_N);
+                        int length = Integer.parseInt(response.getdLenStr().toString());
+                        if (length >= 0) {
+                            response.setdLast(length);
+                        } else {
+                            response.addData(null, 0);
                             return true;
                         }
                     }
                     break;
                 case READ_DATA_END:
-                    if(b=='\r'){
-                        operation.setParseStatus(ParseStatus.READ_DATA_R);
+                    if (b == '\r') {
+                        response.setParseStatus(ParseStatus.READ_DATA_R);
                     }
                     break;
                 case READ_DATA_R:
-                    if(b=='\n')
+                    if (b == '\n')
                         return true;
             }
         }
@@ -230,86 +244,87 @@ public class RedisProtocol {
      * WRITE_ARG:写入当前参数byte数据，一次写入1byte，写完转入WRITE_ARG_R
      * WRITE_ARG_R:写入'\r',转入WRITE_ARG_N
      * WRITE_ARG_N:写入'\n',转入WRITE_ARGS
+     *
      * @param byteBuffer
-     * @param operation
+     * @param request
      * @return
      */
-    public static boolean fillCommand(ByteBuffer byteBuffer,Operation operation){
-        while(byteBuffer.position()<byteBuffer.limit()){
-            switch (operation.getWritePhase()){
+    public static boolean fillCommand(ByteBuffer byteBuffer, Request request) {
+        while (byteBuffer.position() < byteBuffer.limit()) {
+            switch (request.getWritePhase()) {
                 case RAW:
                     byteBuffer.put(ASTERISK_BYTE);
-                    prepareWriteData(buildInt(operation.getArgs().length + 1),WritePhase.WRITE_ARGS_LENGTH,operation);
+                    prepareWriteData(buildInt(request.getArgs().length + 1), WritePhase.WRITE_ARGS_LENGTH, request);
                     break;
                 case WRITE_ARGS_LENGTH:
-                    writeData(operation, byteBuffer, WritePhase.WRITE_ARGS_R);
+                    writeData(request, byteBuffer, WritePhase.WRITE_ARGS_R);
                     break;
                 case WRITE_ARGS_R:
                     byteBuffer.put(specialR);
-                    operation.setWritePhase(WritePhase.WRITE_ARGS_N);
+                    request.setWritePhase(WritePhase.WRITE_ARGS_N);
                     break;
                 case WRITE_ARGS_N:
                     byteBuffer.put(specialN);
-                    operation.setWritePhase(WritePhase.WRITE_DOLLAR);
+                    request.setWritePhase(WritePhase.WRITE_DOLLAR);
                     break;
                 case WRITE_DOLLAR:
                     byteBuffer.put(DOLLAR_BYTE);
-                    prepareWriteData(buildInt(StringEncoder.getBytes(operation.getCommand().name()).length),WritePhase.WRITE_COMMAND_LENGTH,operation);
+                    prepareWriteData(buildInt(StringEncoder.getBytes(request.getCommand().name()).length), WritePhase.WRITE_COMMAND_LENGTH, request);
                     break;
                 case WRITE_COMMAND_LENGTH:
-                    writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_LENGTH_R);
+                    writeData(request, byteBuffer, WritePhase.WRITE_COMMAND_LENGTH_R);
                     break;
                 case WRITE_COMMAND_LENGTH_R:
                     byteBuffer.put(specialR);
-                    operation.setWritePhase(WritePhase.WRITE_COMMAND_LENGTH_N);
+                    request.setWritePhase(WritePhase.WRITE_COMMAND_LENGTH_N);
                     break;
                 case WRITE_COMMAND_LENGTH_N:
                     byteBuffer.put(specialN);
-                    prepareWriteData(StringEncoder.getBytes(operation.getCommand().toString()),WritePhase.WRITE_COMMAND,operation);
+                    prepareWriteData(StringEncoder.getBytes(request.getCommand().toString()), WritePhase.WRITE_COMMAND, request);
                     break;
                 case WRITE_COMMAND:
-                    writeData(operation,byteBuffer,WritePhase.WRITE_COMMAND_R);
+                    writeData(request, byteBuffer, WritePhase.WRITE_COMMAND_R);
                     break;
                 case WRITE_COMMAND_R:
                     byteBuffer.put(specialR);
-                    operation.setWritePhase(WritePhase.WRITE_COMMAND_N);
+                    request.setWritePhase(WritePhase.WRITE_COMMAND_N);
                     break;
                 case WRITE_COMMAND_N:
                     byteBuffer.put(specialN);
-                    operation.setWritePhase(WritePhase.WRITE_ARGS);
+                    request.setWritePhase(WritePhase.WRITE_ARGS);
                     //这里没有break，抽象出WRITE_ARGS，为了分离代码
                 case WRITE_ARGS:
-                    if(operation.getArgs().length==0||operation.getWriteArgsIndex()==operation.getArgs().length){
+                    if (request.getArgs().length == 0 || request.getWriteArgsIndex() == request.getArgs().length) {
                         return true;
                     }
-                    operation.setWritePhase(WritePhase.WRITE_ARGS_DOLLAR);
+                    request.setWritePhase(WritePhase.WRITE_ARGS_DOLLAR);
                     break;
                 case WRITE_ARGS_DOLLAR:
                     byteBuffer.put(DOLLAR_BYTE);
-                    prepareWriteData(buildInt((operation.getArgs()[operation.getWriteArgsIndex()]).length),WritePhase.WRITE_ARG_LENGTH,operation);
+                    prepareWriteData(buildInt((request.getArgs()[request.getWriteArgsIndex()]).length), WritePhase.WRITE_ARG_LENGTH, request);
                     break;
                 case WRITE_ARG_LENGTH:
-                    writeData(operation, byteBuffer, WritePhase.WRITE_ARG_LENGTH_R);
+                    writeData(request, byteBuffer, WritePhase.WRITE_ARG_LENGTH_R);
                     break;
                 case WRITE_ARG_LENGTH_R:
                     byteBuffer.put(specialR);
-                    operation.setWritePhase(WritePhase.WRITE_ARG_LENGTH_N);
+                    request.setWritePhase(WritePhase.WRITE_ARG_LENGTH_N);
                     break;
                 case WRITE_ARG_LENGTH_N:
                     byteBuffer.put(specialN);
-                    prepareWriteData(operation.getArgs()[operation.getWriteArgsIndex()],WritePhase.WRITE_ARG,operation);
+                    prepareWriteData(request.getArgs()[request.getWriteArgsIndex()], WritePhase.WRITE_ARG, request);
                     break;
                 case WRITE_ARG:
-                    writeData(operation,byteBuffer,WritePhase.WRITE_ARG_R);
+                    writeData(request, byteBuffer, WritePhase.WRITE_ARG_R);
                     break;
                 case WRITE_ARG_R:
                     byteBuffer.put(specialR);
-                    operation.setWritePhase(WritePhase.WRITE_ARG_N);
+                    request.setWritePhase(WritePhase.WRITE_ARG_N);
                     break;
                 case WRITE_ARG_N:
                     byteBuffer.put(specialN);
-                    operation.setWriteArgsIndex(operation.getWriteArgsIndex()+1);//设置写入下一个参数，如果有继续写，没有的话由WRITE_ARGS返回true
-                    operation.setWritePhase(WritePhase.WRITE_ARGS);
+                    request.setWriteArgsIndex(request.getWriteArgsIndex() + 1);//设置写入下一个参数，如果有继续写，没有的话由WRITE_ARGS返回true
+                    request.setWritePhase(WritePhase.WRITE_ARGS);
                     break;
             }
         }
@@ -318,28 +333,66 @@ public class RedisProtocol {
 
     /**
      * 设置要写的数据，index，设置operation的next状态
+     *
      * @param data
      * @param toPhase
-     * @param operation
+     * @param request
      */
-    private static void prepareWriteData(byte[] data,WritePhase toPhase,Operation operation){
-        operation.setWriteTarget(data);
-        operation.setWritePhase(toPhase);
-        operation.setWriteDataIndex(0);
+    private static void prepareWriteData(byte[] data, WritePhase toPhase, Request request) {
+        request.setWriteTarget(data);
+        request.setWritePhase(toPhase);
+        request.setWriteDataIndex(0);
     }
 
     /**
      * 写数据per byte buffer
-     * @param operation
+     *
+     * @param request
      * @param byteBuffer
      * @param toPhase
      */
-    private static void writeData(Operation operation,ByteBuffer byteBuffer,WritePhase toPhase){
-        int writeIndex=operation.getWriteDataIndex();
-        if(writeIndex<=operation.getWriteTarget().length-1){
-            byteBuffer.put(operation.getWriteTarget()[writeIndex]);
-            operation.setWriteDataIndex(writeIndex + 1);
-        }else if(writeIndex==operation.getWriteTarget().length)
-            operation.setWritePhase(toPhase);
+    private static void writeData(Request request, ByteBuffer byteBuffer, WritePhase toPhase) {
+        int writeIndex = request.getWriteDataIndex();
+        if (writeIndex <= request.getWriteTarget().length - 1) {
+            byteBuffer.put(request.getWriteTarget()[writeIndex]);
+            request.setWriteDataIndex(writeIndex + 1);
+        } else if (writeIndex == request.getWriteTarget().length)
+            request.setWritePhase(toPhase);
+    }
+
+    public static void callback(Response msgResponse, PubSubCallBack pubSubCallBack) {
+        List<byte[]> reply = Arrays.asList(msgResponse.getData());
+        byte[] type = reply.get(0);
+        String typeStr = StringEncoder.getString(type);
+        int subscribedChannels;
+        String strchannel;
+        String msg;
+        String bpattern;
+        if (typeStr.equals(Operation.Keyword.SUBSCRIBE)) {
+            subscribedChannels = buildLong(reply.get(2)).intValue();
+            strchannel = StringEncoder.getString(reply.get(1));
+            pubSubCallBack.onSubscribe(strchannel, subscribedChannels);
+        }else if(typeStr.equals(Operation.Keyword.UNSUBSCRIBE)){
+            subscribedChannels = buildLong(reply.get(2)).intValue();
+            strchannel = StringEncoder.getString(reply.get(1));
+            pubSubCallBack.onUnsubscribe(strchannel, subscribedChannels);
+        }else if(typeStr.equals(Operation.Keyword.MESSAGE)){
+            strchannel = StringEncoder.getString(reply.get(1));
+            msg=StringEncoder.getString(reply.get(2));
+            pubSubCallBack.onMessage(strchannel, msg);
+        }else if(typeStr.equals(Operation.Keyword.PMESSAGE)){
+            bpattern=StringEncoder.getString(reply.get(1));
+            strchannel = StringEncoder.getString(reply.get(2));
+            msg=StringEncoder.getString(reply.get(3));
+            pubSubCallBack.onPMessage(bpattern,strchannel,msg);
+        }else if(typeStr.equals(Operation.Keyword.PSUBSCRIBE)){
+            subscribedChannels=buildLong(reply.get(2)).intValue();
+            strchannel = StringEncoder.getString(reply.get(1));
+            pubSubCallBack.onPSubscribe(strchannel,subscribedChannels);
+        }else if(typeStr.equals(Operation.Keyword.PUNSUBSCRIBE)){
+            subscribedChannels=buildLong(reply.get(2)).intValue();
+            strchannel = StringEncoder.getString(reply.get(1));
+            pubSubCallBack.onPUnsubscribe(strchannel,subscribedChannels);
+        }
     }
 }

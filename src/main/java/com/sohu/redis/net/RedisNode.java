@@ -17,8 +17,15 @@ public class RedisNode {
 
     private Random random=new Random();
 
+    private String host;
+
+    private int port;
+
     public RedisNode(String host,int port){
+        this.host=host;
+        this.port=port;
         tcpComponent.start();
+        //connect
         connections=new ArrayList<RedisConnection>(conNum);
         for(int i=0;i<conNum;i++){
             connections.add(new RedisConnection(host,port));
@@ -30,4 +37,12 @@ public class RedisNode {
     public RedisConnection getAvailableConnection(){
         return connections.get(random.nextInt(connections.size()));
     }
+
+    public PubSubConnection getPubSubConnection(){
+        PubSubConnection pubSubConnection=new PubSubConnection(host,port);
+        tcpComponent.register(pubSubConnection);
+        return pubSubConnection;
+    }
+
+
 }

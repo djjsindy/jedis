@@ -7,11 +7,11 @@ public class Event {
 
     private EventType eventType;
 
-    private RedisConnection redisConnection;
+    private Connection connection;
 
-    public Event(EventType eventType,RedisConnection redisConnection){
+    public Event(EventType eventType,Connection connection){
         this.eventType=eventType;
-        this.redisConnection=redisConnection;
+        this.connection=connection;
     }
 
     public EventType getEventType() {
@@ -22,11 +22,11 @@ public class Event {
         this.eventType = eventType;
     }
 
-    public RedisConnection getRedisConnection() {
-        return redisConnection;
+    public Connection getConnection() {
+        return connection;
     }
 
-    public void setRedisConnection(RedisConnection redisConnection) {
-        this.redisConnection = redisConnection;
+    public void setConnection(Connection Connection) {
+        this.connection = Connection;
     }
 }
