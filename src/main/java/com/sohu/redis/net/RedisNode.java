@@ -19,8 +19,11 @@ public class RedisNode {
 
     private PubSubConnection pubSubConnection;
 
-    public RedisNode(String host,int port){
+    static{
         tcpComponent.start();
+    }
+
+    public RedisNode(String host,int port){
         //connect
         connections=new ArrayList<RedisConnection>(conNum);
         for(int i=0;i<conNum;i++){

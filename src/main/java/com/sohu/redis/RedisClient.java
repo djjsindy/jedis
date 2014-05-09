@@ -608,6 +608,7 @@ public class RedisClient {
 
     private void unSubPubRequest(Operation operation,String channel){
         PubSubConnection connection=(PubSubConnection)getSubPubConnection(channel);
+        connection.removeCallBack(channel);
         connection.addOperation(operation);
     }
  

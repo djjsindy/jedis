@@ -65,6 +65,10 @@ public class PubSubConnection extends AbstractConnection {
         callBackMap.put(channel, pubSubCallBack);
     }
 
+    public void removeCallBack(String channel){
+        callBackMap.remove(channel);
+    }
+
     public Map<String,PubSubCallBack> getCallBackMap(){
         return callBackMap;
     }
